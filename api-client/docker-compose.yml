@@ -1,0 +1,36 @@
+version: '3'
+services:
+  server:
+    build: .
+    hostname: server
+    depends_on:
+      - redis
+    environment:
+      - NODE_ENV=development
+      - PORT=3020
+      - REDIS_URL=redis://redis
+    # command: "sh -c 'node /app/build/server.js'"
+    # volumes:
+    #   - ..src:/usr/src/app/src
+    links:
+      - redis
+    ports:
+      - "3020:3020"
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker.DOCKERFILE
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - REDIS_URL=redis://redis
+    # command: "sh -c 'node /app/build/worker.js'"
+    depends_on: 
+      - redis
+
+  redis:
+    image: redis:4.0.14-alpine
+    container_name: redis
+    expose:
+      - "6379"

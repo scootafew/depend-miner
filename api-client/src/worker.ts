@@ -1,0 +1,1 @@
+console.log('Worker doing nothing');
