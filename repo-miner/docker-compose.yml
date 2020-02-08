@@ -13,6 +13,7 @@ services:
       - PORT=3000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - GITHUB_API_TOKEN=351b1b95793f9c3cf71af0540b0c147aa6e08e36
     command: npm run start:dev
     volumes:
       - .:/usr/src/app/

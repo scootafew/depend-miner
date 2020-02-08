@@ -8,20 +8,20 @@ import { AxiosError } from 'axios';
 @Injectable()
 export class RepoService {
 
-  API_TOKEN = '351b1b95793f9c3cf71af0540b0c147aa6e08e36';
+  GITHUB_API_TOKEN = process.env.GITHUB_API_TOKEN;
 
   options = {
     baseURL: "https://api.github.com",
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/vnd.github.v3+json',
-      'Authorization': `token ${this.API_TOKEN}`
+      'Authorization': `token ${this.GITHUB_API_TOKEN}`
     }
   }
 
   constructor(private readonly http: HttpService) { }
 
-  fetchRepository(user: string, repo: string, source: string): Promise<Repository> {
+  fetchRepository(user: string, repo: string, source: string): Observable<Repository> {
     return this.http.get(`/repos/${user}/${repo}`, this.options)
       .pipe(
         map(res => adapters.get(source + "Repository").adapt(res.data)),
@@ -31,7 +31,7 @@ export class RepoService {
           }
           throw err;
         })
-      ).toPromise();
+      );
   }
 
   searchRepositories(query: string, source: string, sort?: string, order?: string): Observable<Repository> {
@@ -46,6 +46,13 @@ export class RepoService {
       }
     }).pipe(
       map(res => res.data.items.map((r: any) => adapters.get(source).adapt(r)))
+    )
+  }
+
+  searchCode(query: string) {
+    return this.http.get(`search/code?q=${query}`)
+    .pipe(
+      map(res => console.log(res))
     )
   }
 
