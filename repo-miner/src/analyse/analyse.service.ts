@@ -50,7 +50,14 @@ export class AnalyseService {
   async getDependents(repo: Repository) {
     console.log("Getting dependents for: ", repo.latestArtifact);
 
+    this.repoService.searchCode(this.buildQueryString(repo)).subscribe(r => {
+      console.log(`Repisitory: ${r}`);
+    })
+  }
 
+  buildQueryString(repo: Repository) {
+    const { artifactId, version } = repo.latestArtifact;
+    return `<artifactId>${artifactId}</artifactId> <version>${version}</version> filename:pom extension:xml`;
   }
 
   // async addToQueue() {
