@@ -9,6 +9,7 @@ import { GitHubConnector } from './githubConnector';
 import { IncomingMessage, ServerResponse } from 'http';
 import { setQueues, UI } from 'bull-board';
 import { queues } from './queues';
+import { Queue } from 'bull';
 
 console.log("Hi There");
 
@@ -16,7 +17,11 @@ const server = fastify();
 
 const ghc = new GitHubConnector();
 
-setQueues(queues.process);
+const processQueue: Queue<any> = queues.process;
+
+setQueues(processQueue);
+
+let jobs = 0;
 
 const opts = {
   schema: {
@@ -65,10 +70,24 @@ function getRunHandler(req: FastifyRequest<IncomingMessage>, reply: FastifyReply
   reply.code(200).send();
 }
 
+async function postQueueHandler(req: FastifyRequest<IncomingMessage>, reply: FastifyReply<ServerResponse>) {
+  for (let i = 0; i < 10; i++) {
+    processQueue.add({job: jobs}).catch(err => console.log(err));
+    console.log(`Added job: ${jobs}`);
+    jobs++;
+  }
+  let queueLength = await processQueue.count();
+  console.log(`${queueLength} jobs in queue...`);
+  reply.code(200).send();
+}
+
 // server.use(cors())
 server.get('/', opts, getHelloHandler);
 server.get('/stream', getStreamHandler);
 server.get('/run', getRunHandler);
+
+server.post('/addjobs', postQueueHandler);
+
 server.use('/processqueue', UI);
 
 const PORT = Number(process.env.PORT) || 3000;

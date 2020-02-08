@@ -3,19 +3,20 @@ services:
   server:
     build: .
     hostname: server
+    container_name: server
     depends_on:
       - redis
     environment:
       - NODE_ENV=development
-      - PORT=3020
-      - REDIS_URL=redis://redis
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379
     # command: "sh -c 'node /app/build/server.js'"
     # volumes:
     #   - ..src:/usr/src/app/src
     links:
       - redis
     ports:
-      - "3020:3020"
+      - "3000:3000"
 
   worker:
     build:
@@ -24,7 +25,7 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=3000
-      - REDIS_URL=redis://redis
+      - REDIS_URL=redis
     # command: "sh -c 'node /app/build/worker.js'"
     depends_on: 
       - redis
@@ -34,3 +35,15 @@ services:
     container_name: redis
     expose:
       - "6379"
+
+  bull-board:
+    image: jondum/bull-board:latest
+    container_name: bull-board
+    depends_on: 
+      - redis
+      - server
+    environment:
+      - REDIS_HOST=redis://redis
+      - PORT=3020
+    ports:
+      - "3020:3020"
