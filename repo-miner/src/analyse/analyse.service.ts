@@ -51,13 +51,14 @@ export class AnalyseService {
     console.log("Getting dependents for: ", repo.latestArtifact);
 
     this.repoService.searchCode(this.buildQueryString(repo)).subscribe(r => {
-      console.log(`Repisitory: ${r}`);
+      console.log(`Repository: ${r}`);
     })
   }
 
   buildQueryString(repo: Repository) {
     const { artifactId, version } = repo.latestArtifact;
-    return `<artifactId>${artifactId}</artifactId> <version>${version}</version> filename:pom extension:xml`;
+    return `<artifactId>${artifactId}</artifactId> filename:pom extension:xml`;
+    // return `<artifactId>${artifactId}</artifactId> <version>${version}</version> filename:pom extension:xml`;
   }
 
   // async addToQueue() {

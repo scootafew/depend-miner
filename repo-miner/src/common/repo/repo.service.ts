@@ -16,7 +16,7 @@ export class RepoService {
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/vnd.github.v3+json',
-      'Authorization': `token ${this.GITHUB_API_TOKEN}`
+      'Authorization': `token ${this.GITHUB_API_TOKEN}`,
     }
   }
 
@@ -51,7 +51,7 @@ export class RepoService {
 
   // credit https://medium.com/angular-in-depth/rxjs-understanding-expand-a5f8b41a3602
   searchCode(query: string): Observable<any> {
-    let initial_url = `search/code?q=${query}&per_page=100`;
+    let initial_url = `/search/code?q=${query}&per_page=100`;
     return this.getPaginated(initial_url).pipe(
       expand(({ next }) => next ? this.getPaginated(next) : empty()),
       concatMap(({ data }) => data)
@@ -59,17 +59,26 @@ export class RepoService {
   }
 
   getPaginated(url: string): Observable<{data: any, next: string}> {
-    return this.http.get(url)
+    console.log(url)
+    return this.http.get(url, this.options)
     .pipe(
       map(res => {
-        let rateLimitRemaining = res.headers['X-RateLimit-Remaining'];
-        let links = parseLinkHeader(res.headers['Link']);
+        console.log(res)
+        let rateLimitRemaining = res.headers['x-ratelimit-remaining'] || null;
+        console.log(`Rate Limit Remaining: ${rateLimitRemaining}`);
+        let nextUrl = res.headers['link'] ? parseLinkHeader(res.headers['link']).next?.url : null;
+
+        console.log("Next Url: " + nextUrl)
 
         let response = {
           data: res.data.items?.map((item: any) => item.repository?.full_name),
-          next: links.next.url,
+          next: nextUrl,
         }
         return response;
+      }),
+      catchError((err: AxiosError) => {
+        console.log("Error", err)
+        throw err;
       })
     )
   }

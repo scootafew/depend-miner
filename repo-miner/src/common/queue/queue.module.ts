@@ -7,7 +7,7 @@ import { BullModule } from '@nestjs/bull';
     BullModule.registerQueue({
       name: 'analyse',
       redis: {
-        host: "redis" || process.env.REDIS_HOST || "localhost",
+        host: process.env.REDIS_HOST || "localhost",
         port: Number(process.env.REDIS_PORT) || 6379,
       },
     }),
