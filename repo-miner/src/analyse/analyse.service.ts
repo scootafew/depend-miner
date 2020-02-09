@@ -50,7 +50,7 @@ export class AnalyseService {
   async getDependents(repo: Repository) {
     console.log("Getting dependents for: ", repo.latestArtifact);
 
-    this.repoService.searchCode(this.buildQueryString(repo)).subscribe(r => {
+    this.repoService.searchCodeTwo(this.buildQueryString(repo)).subscribe(r => {
       console.log(`Repository: ${r}`);
     })
   }

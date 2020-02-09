@@ -1,10 +1,11 @@
 import { Injectable, HttpService } from '@nestjs/common';
-import { map, catchError, expand, concatMap } from 'rxjs/operators';
+import { map, catchError, expand, concatMap, delay, delayWhen, flatMap, mergeMap, tap } from 'rxjs/operators';
 import { adapters } from './repo.adapters';
-import { Observable, empty } from 'rxjs';
+import { Observable, empty, of, interval, timer, BehaviorSubject } from 'rxjs';
 import { Repository } from './repo.model';
-import { AxiosError } from 'axios';
+import { AxiosError, AxiosResponse } from 'axios';
 import * as parseLinkHeader from 'parse-link-header';
+import { GithubRateLimit, GithubResourceRateLimits, GithubRateLimitResponse } from './rateLimit.model';
 
 @Injectable()
 export class RepoService {
@@ -20,7 +21,17 @@ export class RepoService {
     }
   }
 
-  constructor(private readonly http: HttpService) { }
+  rateLimits: BehaviorSubject<GithubResourceRateLimits> = new BehaviorSubject(null);
+
+  constructor(private readonly http: HttpService) {
+    this.getResourceRateLimits();
+  }
+
+  getResourceRateLimits() {
+    this.http.get<GithubRateLimitResponse>('/rate_limit', this.options).subscribe(res => {
+      this.rateLimits.next(res.data.resources);
+    })
+  }
 
   fetchRepository(user: string, repo: string, source: string): Observable<Repository> {
     return this.http.get(`/repos/${user}/${repo}`, this.options).pipe(
@@ -53,38 +64,132 @@ export class RepoService {
   searchCode(query: string): Observable<any> {
     let initial_url = `/search/code?q=${query}&per_page=100`;
     return this.getPaginated(initial_url).pipe(
-      expand(({ next }) => next ? this.getPaginated(next) : empty()),
+      expand(({ next, rateLimitRemaining, rateLimitReset }) => {
+        if (next) {
+          // this.getPaginated(next);
+          if (rateLimitRemaining) {
+            console.log("Rate limit not zero continuing...")
+            return this.getPaginated(next);
+          } else {
+            console.log("Rate limit zero waiting...")
+            // return of(delay(this.getDelay(rateLimitReset))).pipe(() => this.getPaginated(next));
+            return this.getPaginated(next).pipe(
+              concatMap(res => of(res).pipe(delay(10000)))
+            )
+          }
+        } else {
+          return empty();
+        }
+      }),
       concatMap(({ data }) => data)
     )
   }
 
-  getPaginated(url: string): Observable<{data: any, next: string}> {
+  getDelay(rlr: number) {
+    let delay = (rlr * 1000) - Date.now();
+    console.log("Delay: " + delay);
+    return delay;
+  }
+
+  getPaginated(url: string): Observable<{ data: any, next: string, rateLimitRemaining: number, rateLimitReset: number }> {
     console.log(url)
     return this.http.get(url, this.options)
-    .pipe(
-      map(res => {
-        console.log(res)
-        let rateLimitRemaining = res.headers['x-ratelimit-remaining'] || null;
-        console.log(`Rate Limit Remaining: ${rateLimitRemaining}`);
-        let nextUrl = res.headers['link'] ? parseLinkHeader(res.headers['link']).next?.url : null;
+      .pipe(
+        map(res => {
+          // console.log(res)
+          let rateLimitRemaining = 0;
+          let rateLimitReset = Math.ceil(Date.now() / 1000) + 10;
+          // let rateLimitRemaining = res.headers['x-ratelimit-remaining'] || null;
+          // let rateLimitReset = res.headers['x-ratelimit-reset'] || null;
+          console.log(`Rate Limit Remaining: ${rateLimitRemaining}`);
+          console.log(`Rate Limit Reset: ${rateLimitReset}`);
+          let nextUrl = res!.headers['link'] ? parseLinkHeader(res.headers['link']).next?.url : null;
 
-        console.log("Next Url: " + nextUrl)
+          // console.log("Next Url: " + nextUrl)
 
-        let response = {
-          data: res.data.items?.map((item: any) => item.repository?.full_name),
-          next: nextUrl,
-        }
-        return response;
-      }),
-      catchError((err: AxiosError) => {
-        console.log("Error", err)
-        throw err;
-      })
-    )
+          let response = {
+            data: res.data.items?.map((item: any) => item.repository?.full_name),
+            next: nextUrl,
+            rateLimitRemaining: rateLimitRemaining,
+            rateLimitReset: rateLimitReset
+          }
+          return response;
+        }),
+        catchError((err: AxiosError) => {
+          console.log("Error", err)
+          throw err;
+        })
+      )
   }
 
   followLink(link: string) {
     return this.http.get(link);
+  }
+
+  searchCodeTwo(query: string) {
+    let url = `https://api.github.com/search/code?q=${query}&per_page=100`;
+    let rateLimit = {
+      limit: 30,
+      remaining: 30,
+      reset: Math.ceil(Date.now() / 1000) + 10
+    }
+    return this.getPages(url, this.options, rateLimit);
+  }
+
+  getPages(url: string, options: any, limit: GithubRateLimit): Observable<any> {
+    return this.getPage(url, options, limit).pipe(
+      expand(({ next, rateLimit }) => next ? this.getPage(next, options, rateLimit) : empty()),
+      concatMap(({ data }) => data)
+    )
+  }
+
+  getPage<T>(url: string, options: any, rateLimit: GithubRateLimit): Observable<{ data: any, next: string, rateLimit: GithubRateLimit }> {
+    return this.get<any>(url, options, rateLimit)
+      .pipe(
+        map(res => {
+          // console.log(res)
+          let rateLimit = this.parseRateLimit(res);
+          console.log(`Rate Limit Remaining: ${rateLimit.remaining}`);
+          console.log(`Rate Limit Reset: ${rateLimit.reset}`);
+          let nextUrl = res!.headers['link'] ? parseLinkHeader(res.headers['link']).next?.url : null;
+
+          // console.log("Next Url: " + nextUrl)
+
+          return {
+            data: res.data!.items?.map((item: any) => item.repository?.full_name),
+            next: nextUrl,
+            rateLimit: rateLimit
+          }
+        })
+      )
+  }
+
+  private get<T>(url: string, options: any, rateLimit: GithubRateLimit): Observable<AxiosResponse<T>> {
+    return this.waitForRateLimit(rateLimit)
+      .pipe(
+        mergeMap(() => this.http.get<T>(url, options))
+      );
+  }
+
+  private waitForRateLimit(rateLimit: GithubRateLimit): Observable<any> {
+    if (!rateLimit.remaining) {
+      const secondsDelay = 5;
+      const resetDate = new Date((rateLimit.reset * 1000) + secondsDelay);
+
+      console.log("Waiting until: ", resetDate)
+
+      return timer(resetDate);
+    } else {
+      return of(null);
+    }
+  }
+
+  private parseRateLimit(res: AxiosResponse<any>): GithubRateLimit {
+    return {
+      limit: res.headers['x-ratelimit-limit'] ? Number(res.headers['x-ratelimit-limit']) : 0,
+      remaining: res.headers['x-ratelimit-remaining'] ? Number(res.headers['x-ratelimit-remaining']) : 0,
+      reset: res.headers['x-ratelimit-reset'] ? Number(res.headers['x-ratelimit-reset']) : 0
+    }
   }
 
 }
