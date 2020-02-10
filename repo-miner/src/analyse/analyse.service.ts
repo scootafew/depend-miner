@@ -3,7 +3,9 @@ import { Queue } from 'bull';
 import { InjectQueue } from '@nestjs/bull';
 import { Repository, Artifact } from 'src/common/repo/repo.model';
 import { RepoService } from 'src/common/repo/repo.service';
-import { map } from 'rxjs/operators';
+import { map, delay, concatMap, flatMap } from 'rxjs/operators';
+import { GitHubCodeSearchResultItem } from 'src/common/repo/codeSearchResult';
+import { of } from 'rxjs';
 
 @Injectable()
 export class AnalyseService {
@@ -18,13 +20,17 @@ export class AnalyseService {
     console.log(`Processing repository ${repo.fullName}`);
 
     // add job to queue with lifo so this job will be processed as soon as worker is free
-    this.analyseQueue.add({repo: repo}, {lifo: true})
-      .then(() => console.log(`Added repo: ${repo.fullName} to queue ${this.analyseQueue.name}`))
-      .catch(err => console.log(err));
+    this.addToQueue(repo, true);
 
     // begin search for depencies and dependents
     this.getDependencies(repo);
     this.getDependents(repo);
+  }
+
+  async addToQueue(repo: Repository, lifo: boolean = false) {
+    this.analyseQueue.add({repo: repo}, {lifo: lifo})
+      .then(() => console.log(`Added repo: ${repo.fullName} to queue ${this.analyseQueue.name}`))
+      .catch(err => console.log(err));
   }
 
   async getRepository(user: string, repo: string, latestArtifact?: Artifact): Promise<Repository> {
@@ -50,9 +56,20 @@ export class AnalyseService {
   async getDependents(repo: Repository) {
     console.log("Getting dependents for: ", repo.latestArtifact);
 
-    this.repoService.searchCodeTwo(this.buildQueryString(repo)).subscribe(r => {
-      console.log(`Repository: ${r}`);
-    })
+    // this.repoService.searchCodeTwo(this.buildQueryString(repo)).subscribe(
+    //   item => console.log(`${item.repository.owner.login}/${item.repository.name}`)
+    // )
+
+    let rate = 1000;
+
+    this.repoService.searchCodeTwo(this.buildQueryString(repo)).pipe(
+      concatMap(item => of(item).pipe(delay(rate))),
+      flatMap(item => this.repoService.fetchRepository(item.repository.owner.login, item.repository.name, "GitHub"))
+    ).subscribe(repo => this.addToQueue(repo))
+  }
+
+  log(item: GitHubCodeSearchResultItem) {
+    console.log(`${item.repository.owner.login}/${item.repository.name}`)
   }
 
   buildQueryString(repo: Repository) {

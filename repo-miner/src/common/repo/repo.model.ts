@@ -1,5 +1,6 @@
 export class Repository {
 
+  public source: string;
   public fullName: string;
   public owner: string;
   public name: string;

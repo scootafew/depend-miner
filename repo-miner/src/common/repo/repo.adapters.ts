@@ -9,6 +9,7 @@ class GitHubRepoAdapter implements Adapter<Repository> {
   adapt(json: any): Repository {
     let repo = new Repository();
     
+    repo.source = "GitHub";
     repo.fullName = json.full_name;
     repo.owner = json.owner?.login;
     repo.name = json.name;
