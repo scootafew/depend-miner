@@ -1,15 +1,34 @@
 import { Injectable, HttpService } from '@nestjs/common';
-import { map, catchError, expand, concatMap, delay, delayWhen, flatMap, mergeMap, tap } from 'rxjs/operators';
+import { map, catchError, expand, concatMap, delay, delayWhen, flatMap, mergeMap, tap, combineAll } from 'rxjs/operators';
 import { adapters } from './repo.adapters';
-import { Observable, empty, of, interval, timer, BehaviorSubject } from 'rxjs';
+import { Observable, empty, of, interval, timer, BehaviorSubject, concat, Subject } from 'rxjs';
 import { Repository } from './repo.model';
 import { AxiosError, AxiosResponse } from 'axios';
 import * as parseLinkHeader from 'parse-link-header';
 import { GithubRateLimit, GithubResourceRateLimits, GithubRateLimitResponse } from './rateLimit.model';
 import { GitHubSearchResultRepository, GitHubSearchResult, GitHubCodeSearchResultItem } from './codeSearchResult';
 
+interface RepositoryRequest {
+  user: string,
+  repo: string,
+  source: string,
+  result: Subject<Repository>
+}
+
+export class PendingRequest {
+  url: string;
+  subscription: Subject<any>;
+
+  constructor(url: string, subscription: Subject<any>) {
+    this.url = url;
+    this.subscription = subscription;
+  }
+}
+
 @Injectable()
 export class RepoService {
+
+  // https://stackoverflow.com/questions/48021728/add-queueing-to-angulars-httpclient
 
   GITHUB_API_TOKEN = process.env.GITHUB_API_TOKEN;
 
@@ -22,10 +41,13 @@ export class RepoService {
     }
   }
 
+  requestSubject: Subject<PendingRequest> = new Subject();
+
   rateLimits: BehaviorSubject<GithubResourceRateLimits> = new BehaviorSubject(null);
 
   constructor(private readonly http: HttpService) {
     this.getResourceRateLimits();
+    this.setupLimitedSubject();
   }
 
   getResourceRateLimits() {
@@ -34,19 +56,73 @@ export class RepoService {
     })
   }
 
-  fetchRepository(user: string, repo: string, source: string): Observable<Repository> {
-    console.log(`Fetching repo: ${user}/${repo}`);
-    return this.http.get(`/repos/${user}/${repo}`, this.options).pipe(
-      map(res => adapters.get(source + "Repository").adapt(res.data)),
+  setupLimitedSubject() {
+    let rate = 5000;
+    this.requestSubject.pipe(
+      concatMap(item => {
+        // console.log("Delaying")
+        return of(item).pipe(delay(rate))
+      }),
+    ).subscribe(pending => {
+      // console.log("Executing...")
+      this.execute(pending);
+    })
+  }
+
+  // fetchRepository() {
+  //   this.getLimitedSubject().pipe(
+  //     map(request => {
+  //       const {user, repo, source,result} = request;
+
+  //       console.log(`Fetching repo: ${user}/${repo}`);
+  //       result.pipe(flatMap(() => this.doGet(user, repo, source)));
+  //     })
+  //   ).subscribe();
+
+  //   this.queue.request(retry => this.doGet("a", "b", "GitHub"), 'core', 'core')
+  // }
+
+  // doGet(user: string, repo: string, source: string): Observable<Repository> {
+  //   return this.http.get(`/repos/${user}/${repo}`, this.options).pipe(
+  //     map(res => adapters.get(source + "Repository").adapt(res.data)),
+  //     catchError((err: AxiosError) => {
+  //       if (err.response?.status == 404) {
+  //         console.log(`Repository ${user}/${repo} not found!`);
+  //         return empty();
+  //       }
+  //       throw err;
+  //     })
+  //   );
+  // }
+
+  getRepository(user: string, repo: string, source: string): Observable<Repository> {
+    return this.addRequestToQueue(`/repos/${user}/${repo}`);
+  }
+
+  private execute(requestData: PendingRequest): void {
+    //One can enhance below method to fire post/put as well. (somehow .finally is not working for me)
+    console.log(`Getting url ${requestData.url}`)
+    this.http.get(requestData.url, this.options).pipe(
+      map(res => adapters.get("GitHubRepository").adapt(res.data)),
       catchError((err: AxiosError) => {
         if (err.response?.status == 404) {
-          console.log(`Repository ${user}/${repo} not found!`);
+          console.log(`Repository at ${requestData.url} not found!`);
           return empty();
         }
         throw err;
       })
-    );
+    ).subscribe(res => requestData.subscription.next(res));
   }
+
+  private addRequestToQueue(url: string): Observable<Repository> {
+    const sub = new Subject<Repository>();
+    const request = new PendingRequest(url, sub);
+
+    this.requestSubject.next(request);
+    return sub;
+  }
+
+  /////////////////////////////////
 
   // searchRepositories(query: string, source: string, sort?: string, order?: string): Observable<Repository> {
   //   return this.http.get(`/search/repositories`, {

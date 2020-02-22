@@ -3,7 +3,7 @@ import { Queue } from 'bull';
 import { InjectQueue } from '@nestjs/bull';
 import { Repository, Artifact } from 'src/common/repo/repo.model';
 import { RepoService } from 'src/common/repo/repo.service';
-import { map, delay, concatMap, flatMap } from 'rxjs/operators';
+import { map, delay, concatMap, flatMap, take } from 'rxjs/operators';
 import { GitHubCodeSearchResultItem } from 'src/common/repo/codeSearchResult';
 import { of } from 'rxjs';
 
@@ -34,13 +34,15 @@ export class AnalyseService {
   }
 
   async getRepository(user: string, repo: string, latestArtifact?: Artifact): Promise<Repository> {
-    return this.repoService.fetchRepository(user, repo, "GitHub")
+    return this.repoService.getRepository(user, repo, "GitHub")
       .pipe(
-        map(repo => this.setLatestReleaseArtifact(repo, latestArtifact))
+        map(repo => this.setLatestReleaseArtifact(repo, latestArtifact)),
+        take(1)
       ).toPromise();
   }
 
-  async setLatestReleaseArtifact(repo: Repository, artifact?: Artifact) {
+  setLatestReleaseArtifact(repo: Repository, artifact?: Artifact) {
+    console.log(`Setting latest artifact on ${repo.fullName}`);
     if (artifact) {
       repo.latestArtifact = artifact;
     }
@@ -53,6 +55,7 @@ export class AnalyseService {
 
   }
 
+  // TODO: Rate limitng should be handled in service (by having a queue of incoming requests?)
   async getDependents(repo: Repository) {
     console.log("Getting dependents for: ", repo.latestArtifact);
 
@@ -60,11 +63,15 @@ export class AnalyseService {
     //   item => console.log(`${item.repository.owner.login}/${item.repository.name}`)
     // )
 
-    let rate = 1000;
+    // let rate = 1000;
+
+    // this.repoService.searchCodeTwo(this.buildQueryString(repo)).pipe(
+    //   concatMap(item => of(item).pipe(delay(rate))),
+    //   flatMap(item => this.repoService.fetchRepository(item.repository.owner.login, item.repository.name, "GitHub"))
+    // ).subscribe(repo => this.addToQueue(repo))
 
     this.repoService.searchCodeTwo(this.buildQueryString(repo)).pipe(
-      concatMap(item => of(item).pipe(delay(rate))),
-      flatMap(item => this.repoService.fetchRepository(item.repository.owner.login, item.repository.name, "GitHub"))
+      flatMap(item => this.repoService.getRepository(item.repository.owner.login, item.repository.name, "GitHub"))
     ).subscribe(repo => this.addToQueue(repo))
   }
 
