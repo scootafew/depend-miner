@@ -15,3 +15,8 @@ export interface GithubRateLimitResponse {
   rate: GithubRateLimit;
   resources: GithubResourceRateLimits;
 }
+
+export enum RateLimitType {
+  Core = "core",
+  Search = "search"
+}

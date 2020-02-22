@@ -1,14 +1,21 @@
 import { Injectable, HttpService, HttpStatus } from '@nestjs/common';
-import { map, expand, concatMap, delay, mergeMap } from 'rxjs/operators';
+import { map, expand, concatMap, delay, mergeMap, take, filter, tap } from 'rxjs/operators';
 import { adapters } from './repo.adapters';
 import { Observable, empty, of, timer, BehaviorSubject, Subject } from 'rxjs';
 import { Repository } from './repo.model';
 import { AxiosError, AxiosResponse } from 'axios';
 import * as parseLinkHeader from 'parse-link-header';
-import { GithubRateLimit, GithubResourceRateLimits, GithubRateLimitResponse } from './rateLimit.model';
+import { GithubRateLimit, GithubResourceRateLimits, GithubRateLimitResponse, RateLimitType } from './rateLimit.model';
 import { GitHubSearchResult, GitHubCodeSearchResultItem } from './codeSearchResult';
 import { PendingRequest } from './pendingRequest';
+import { response } from 'express';
 
+type RateLimits = {
+  [key in RateLimitType]: BehaviorSubject<GithubRateLimit>
+}
+
+// Credit https://stackoverflow.com/questions/48021728/add-queueing-to-angulars-httpclient
+// Credit https://github.com/andrewseguin/dashboard/blob/d1bf6e1d87ec2fd1bf38417757576c30514b0145/src/app/service/github.ts
 @Injectable()
 export class RepoService {
 
@@ -23,7 +30,11 @@ export class RepoService {
 
   requestSubject: Subject<PendingRequest> = new Subject();
 
-  rateLimits: BehaviorSubject<GithubResourceRateLimits> = new BehaviorSubject(null);
+  // rateLimits: BehaviorSubject<GithubResourceRateLimits> = new BehaviorSubject(null);
+  rateLimits: RateLimits = {
+    [RateLimitType.Core]: new BehaviorSubject(null),
+    [RateLimitType.Search]: new BehaviorSubject(null)
+  }
 
   constructor(private readonly http: HttpService) {
     this.getResourceRateLimits();
@@ -32,7 +43,9 @@ export class RepoService {
 
   getResourceRateLimits(): void {
     this.http.get<GithubRateLimitResponse>('/rate_limit', this.options).subscribe(res => {
-      this.rateLimits.next(res.data.resources);
+      
+      this.rateLimits[RateLimitType.Core].next(res.data.resources.core);
+      this.rateLimits[RateLimitType.Search].next(res.data.resources.search);
     })
   }
 
@@ -57,7 +70,6 @@ export class RepoService {
     return sub;
   }
 
-   // Credit https://stackoverflow.com/questions/48021728/add-queueing-to-angulars-httpclient
   private execute(request: PendingRequest): void {
     console.log(`Getting url ${request.url}`)
     this.http.get(request.url, this.options).pipe(
@@ -77,23 +89,18 @@ export class RepoService {
 
   searchCode(query: string): Observable<GitHubCodeSearchResultItem> {
     let url = `https://api.github.com/search/code?q=${query}&per_page=100`;
-    let rateLimit = {
-      limit: 30,
-      remaining: 30,
-      reset: Math.ceil(Date.now() / 1000) + 10
-    }
-    return this.getPages<GitHubCodeSearchResultItem>(url, this.options, rateLimit);
+    return this.getPages<GitHubCodeSearchResultItem>(url, this.options, RateLimitType.Core);
   }
 
-  getPages<T>(url: string, options: any, limit: GithubRateLimit): Observable<T> {
-    return this.getPage<T>(url, options, limit).pipe(
-      expand(({ next, rateLimit }) => next ? this.getPage<T>(next, options, rateLimit) : empty()),
+  getPages<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<T> {
+    return this.getPage<T>(url, options, rateLimitType).pipe(
+      expand(({ next }) => next ? this.getPage<T>(next, options, rateLimitType) : empty()),
       concatMap(({ data }) => data)
     )
   }
 
-  getPage<T>(url: string, options: any, rateLimit: GithubRateLimit): Observable<{ data: T[], next: string, rateLimit: GithubRateLimit }> {
-    return this.get<T>(url, options, rateLimit)
+  getPage<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<{ data: T[], next: string }> {
+    return this.get<GitHubSearchResult<T>>(url, options, rateLimitType)
       .pipe(
         map(res => {
           // console.log(res)
@@ -106,31 +113,47 @@ export class RepoService {
 
           return {
             data: res.data.items,
-            next: nextUrl,
-            rateLimit: rateLimit
+            next: nextUrl
           }
         })
       )
   }
 
-  private get<T>(url: string, options: any, rateLimit: GithubRateLimit): Observable<AxiosResponse<GitHubSearchResult<T>>> {
-    return this.waitForRateLimit(rateLimit)
+  private get<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<AxiosResponse<T>> {
+    return this.waitForRateLimit(rateLimitType)
       .pipe(
-        mergeMap(() => this.http.get<GitHubSearchResult<T>>(url, options))
+        mergeMap(() => this.http.get<T>(url, options)),
+        tap(response => this.updateRateLimit(rateLimitType, response))
       );
   }
 
-  private waitForRateLimit(rateLimit: GithubRateLimit): Observable<any> {
-    if (!rateLimit.remaining) {
-      const secondsDelay = 5;
-      const resetDate = new Date((rateLimit.reset * 1000) + secondsDelay);
+  private waitForRateLimit(rateLimitType: RateLimitType): Observable<any> {
+    return this.rateLimits[rateLimitType].pipe(
+      filter(v => !!v), take(1), mergeMap(rateLimit => {
+        if (!rateLimit.remaining) {
+          const secondsDelay = 5;
+          const resetDate = new Date((rateLimit.reset * 1000) + secondsDelay);
+    
+          console.log("Waiting until: ", resetDate)
+    
+          return timer(resetDate);
+        } else {
+          console.log(`Actual rate limit remaining: ${rateLimit.remaining}`)
+          return of(null);
+        }
+      }));
+  }
 
-      console.log("Waiting until: ", resetDate)
-
-      return timer(resetDate);
-    } else {
-      return of(null);
+  private updateRateLimit(type: RateLimitType, response: AxiosResponse<any>|null) {
+    if (!response) {
+      return;
     }
+
+    const {reset, limit, remaining} = this.parseRateLimit(response);
+    this.rateLimits[type].pipe(filter(v => !!v), take(1)).subscribe(rateLimit => {
+      rateLimit = {reset, limit, remaining};
+      this.rateLimits[type].next(rateLimit);
+    });
   }
 
   private parseRateLimit(res: AxiosResponse<any>): GithubRateLimit {
