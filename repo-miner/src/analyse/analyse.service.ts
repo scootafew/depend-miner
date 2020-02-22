@@ -57,7 +57,7 @@ export class AnalyseService {
     console.log("Getting dependents for: ", repo.latestArtifact);
 
     this.repoService.searchCode(this.buildQueryString(repo)).pipe(
-      flatMap(item => this.repoService.getRepository(item.repository.owner.login, item.repository.name, "GitHub"))
+      flatMap(item => this.repoService.getRepositoryInBackground(item.repository.owner.login, item.repository.name, "GitHub"))
     ).subscribe(repo => this.addToQueue(repo))
   }
 

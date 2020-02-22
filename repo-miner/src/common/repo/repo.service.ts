@@ -1,5 +1,5 @@
 import { Injectable, HttpService, HttpStatus } from '@nestjs/common';
-import { map, expand, concatMap, delay, mergeMap, take, filter, tap } from 'rxjs/operators';
+import { map, expand, concatMap, delay, mergeMap, take, filter, tap, catchError } from 'rxjs/operators';
 import { adapters } from './repo.adapters';
 import { Observable, empty, of, timer, BehaviorSubject, Subject } from 'rxjs';
 import { Repository } from './repo.model';
@@ -59,12 +59,25 @@ export class RepoService {
   }
 
   getRepository(user: string, repo: string, source: string): Observable<Repository> {
+    return this.get<any>(`/repos/${user}/${repo}`, this.options, RateLimitType.Core).pipe(
+      map(res => adapters.get(source + "Repository").adapt(res.data)),
+      catchError((err: AxiosError) => {
+        if (err.response?.status == HttpStatus.NOT_FOUND) {
+          console.log(`Repository ${user}/${repo} not found!`);
+          return empty();
+        }
+        throw err;
+      })
+    );
+  }
+
+  getRepositoryInBackground(user: string, repo: string, source: string): Observable<Repository> {
     return this.addRequestToQueue(`/repos/${user}/${repo}`);
   }
 
   private addRequestToQueue(url: string): Observable<Repository> {
     const sub = new Subject<Repository>();
-    const request = new PendingRequest(url, sub);
+    const request = new PendingRequest(url, RateLimitType.Core, sub);
 
     this.requestSubject.next(request);
     return sub;
@@ -72,7 +85,7 @@ export class RepoService {
 
   private execute(request: PendingRequest): void {
     console.log(`Getting url ${request.url}`)
-    this.http.get(request.url, this.options).pipe(
+    this.get<any>(request.url, this.options, request.rateLimitType).pipe(
       map(res => adapters.get("GitHubRepository").adapt(res.data)),
     ).subscribe(res => {
       request.subscription.next(res)
