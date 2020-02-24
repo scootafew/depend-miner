@@ -23,17 +23,22 @@ services:
     ports:
       - "3000:3000"
 
-  # worker:
-  #   build:
-  #     context: .
-  #     dockerfile: worker.DOCKERFILE
-  #   environment:
-  #     - NODE_ENV=development
-  #     - PORT=3000
-  #     - REDIS_URL=redis
-  #   # command: "sh -c 'node /app/build/worker.js'"
-  #   depends_on: 
-  #     - redis
+  worker:
+    build:
+      context: .
+      dockerfile: worker.DOCKERFILE
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - REDIS_URL=redis
+      - NEO4J_URL=bolt://neo4j:neo4j@localhost:7687
+      - M2_HOME="C:/Program Files/apache-maven-3.6.3"
+      - JP2G_JAR="./jp2g/java-parse-to-graph-1.0-SNAPSHOT.jar"
+    # command: "sh -c 'node /app/build/worker.js'"
+    depends_on: 
+      - redis
+      - neo4j
+      - server
 
   redis:
     container_name: redis
