@@ -30,7 +30,8 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=3000
-      - REDIS_URL=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - NEO4J_URL=bolt://neo4j:neo4j@localhost:7687
       - M2_HOME="C:/Program Files/apache-maven-3.6.3"
       - JP2G_JAR="./jp2g/java-parse-to-graph-1.0-SNAPSHOT.jar"

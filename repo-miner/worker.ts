@@ -2,13 +2,23 @@ import * as Worker from 'bull';
 import * as util from 'util'
 import * as child_process from 'child_process'
 import { Job } from 'bull';
-import { Repository } from 'src/common/repo/repo.model';
+import { Repository } from './repo.model';
+
+interface RepositoryJob {
+  repo: Repository
+}
 
 const exec = util.promisify(child_process.exec);
-const worker = new Worker('anaylse', process.env.REDIS_URL);
+const worker = new Worker('analyse', { 
+  redis: {
+    host: process.env.REDIS_HOST,
+    port: Number(process.env.REDIS_PORT)
+  }
+})
 
-worker.process(async (job: Job<Repository>) => {
-  const repo = job.data;
+worker.process(async (job: Job<RepositoryJob>) => {
+  const repo = job.data.repo;
+  console.log(repo);
   console.log(`Processed repository: ${repo.fullName}`);
   // anaylseRepository(repo);
 });

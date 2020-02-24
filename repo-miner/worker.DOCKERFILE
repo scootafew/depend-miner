@@ -11,7 +11,8 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 COPY tsconfig*.json ./
 COPY ./worker.ts ./worker.ts
-RUN npm ci --quiet && npm run build
+COPY ./repo.model.ts ./repo.model.ts
+RUN npm ci --quiet && npm run pure:compile
 
 #
 # Production stage.
