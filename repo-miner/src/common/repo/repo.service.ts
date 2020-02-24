@@ -5,10 +5,9 @@ import { Observable, empty, of, timer, BehaviorSubject, Subject } from 'rxjs';
 import { Repository } from './repo.model';
 import { AxiosError, AxiosResponse } from 'axios';
 import * as parseLinkHeader from 'parse-link-header';
-import { GithubRateLimit, GithubResourceRateLimits, GithubRateLimitResponse, RateLimitType } from './rateLimit.model';
+import { GithubRateLimit, GithubRateLimitResponse, RateLimitType } from './rateLimit.model';
 import { GitHubSearchResult, GitHubCodeSearchResultItem } from './codeSearchResult';
 import { PendingRequest } from './pendingRequest';
-import { response } from 'express';
 
 type RateLimits = {
   [key in RateLimitType]: BehaviorSubject<GithubRateLimit>
@@ -28,7 +27,7 @@ export class RepoService {
     }
   }
 
-  requestSubject: Subject<PendingRequest> = new Subject();
+  backgroundRequestQueue$: Subject<PendingRequest> = new Subject();  // Could potentially replace with another Bull queue
 
   // rateLimits: BehaviorSubject<GithubResourceRateLimits> = new BehaviorSubject(null);
   rateLimits: RateLimits = {
@@ -49,9 +48,8 @@ export class RepoService {
     })
   }
 
-  // TODO improve by not delaying the first request
   private setupRateLimitedSubject(rate: number): void {
-    this.requestSubject.pipe(
+    this.backgroundRequestQueue$.pipe(
       concatMap(item => of(item).pipe(delay(rate))) // Delay request by rate param (milliseconds)
     ).subscribe(pending => {
       this.execute(pending);
@@ -79,7 +77,7 @@ export class RepoService {
     const sub = new Subject<Repository>();
     const request = new PendingRequest(url, RateLimitType.Core, sub);
 
-    this.requestSubject.next(request);
+    this.backgroundRequestQueue$.next(request);
     return sub;
   }
 
@@ -117,10 +115,10 @@ export class RepoService {
       .pipe(
         map(res => {
           // console.log(res)
-          let rateLimit = this.parseRateLimit(res);
+          const rateLimit = this.parseRateLimit(res);
           console.log(`Rate Limit Remaining: ${rateLimit.remaining}`);
           console.log(`Rate Limit Reset: ${rateLimit.reset}`);
-          let nextUrl = res!.headers['link'] ? parseLinkHeader(res.headers['link']).next?.url : null;
+          const nextUrl = res!.headers['link'] ? parseLinkHeader(res.headers['link']).next?.url : null;
 
           // console.log("Next Url: " + nextUrl)
 
@@ -149,7 +147,7 @@ export class RepoService {
     
           console.log("Waiting until: ", resetDate)
     
-          return timer(resetDate);
+          return timer(resetDate); // TODO fix requests piling up waiting to all be released at the same time (if waiting should be timer at queue level)
         } else {
           console.log(`Actual rate limit remaining: ${rateLimit.remaining}`)
           return of(null);
