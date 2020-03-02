@@ -5,6 +5,7 @@ export class Repository {
   public owner: string;
   public name: string;
   public url: string;
+  public cloneUrl: string;
 
   public latestArtifact: Artifact;
 

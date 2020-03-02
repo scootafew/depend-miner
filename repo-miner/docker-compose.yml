@@ -1,4 +1,4 @@
-version: '3.7'
+version: '2.4'
 services:
   server:
     build:
@@ -15,8 +15,8 @@ services:
       - REDIS_PORT=6379
       - GITHUB_API_TOKEN=351b1b95793f9c3cf71af0540b0c147aa6e08e36
     command: npm run start:dev
-    volumes:
-      - .:/usr/src/app/
+    # volumes:
+      # - .:/usr/src/app/
       # - /usr/src/app/node_modules
     links:
       - redis
@@ -26,20 +26,27 @@ services:
   worker:
     build:
       context: .
+      target: development
       dockerfile: worker.DOCKERFILE
     environment:
       - NODE_ENV=development
       - PORT=3000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - NEO4J_URL=bolt://neo4j:neo4j@localhost:7687
-      - M2_HOME="C:/Program Files/apache-maven-3.6.3"
-      - JP2G_JAR="./jp2g/java-parse-to-graph-1.0-SNAPSHOT.jar"
+      - NEO4J_URL=bolt://neo4j:neo4j@neo4j:7687
+      - M2_HOME=/usr/share/maven
+      - JP2G_JAR=/home/app/jp2g/target/java-parse-to-graph-1.0-SNAPSHOT.jar
     # command: "sh -c 'node /app/build/worker.js'"
+    command: npm run pure:start-dev
+    volumes:
+      - ./worker.ts:/home/app/worker.ts
+      - ./repo.model.ts:/home/app/repo.model.ts
     depends_on: 
       - redis
       - neo4j
       - server
+    links: 
+      - neo4j
 
   redis:
     container_name: redis

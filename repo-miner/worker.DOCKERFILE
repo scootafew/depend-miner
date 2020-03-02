@@ -1,22 +1,43 @@
 # Credit https://medium.com/@VincentSchoener/development-of-nodejs-application-with-docker-and-typescript-part-2-4dd51c1e7766
 
 #
-# Builder stage.
+# Development stage.
 # This state compile our TypeScript to get the JavaScript code
 #
-FROM node:12.13.0 AS builder
+# FROM node:12.13.0 AS development
 
-WORKDIR /usr/src/app
+# WORKDIR /usr/src/app
+
+FROM jp2g:latest AS development
+
+# update 
+RUN apt-get update && \
+# install curl 
+apt-get install curl && \
+# get install script and pass it to execute: 
+curl -sL https://deb.nodesource.com/setup_12.x | bash  && \
+# and install node 
+apt-get install -y nodejs && \
+# confirm that it was successful 
+node -v && \
+# npm installs automatically 
+npm -v
+
+WORKDIR /home/app
 
 COPY package*.json ./
 COPY tsconfig*.json ./
+COPY nodemon*.json ./
 COPY ./worker.ts ./worker.ts
 COPY ./repo.model.ts ./repo.model.ts
 RUN npm ci --quiet && npm run pure:compile
 
+# Override entrypoint in jp2g
+ENTRYPOINT []
+
 #
 # Production stage.
-# This state compile get back the JavaScript code from builder stage
+# This state compile get back the JavaScript code from development stage
 # It will also install the production package only
 #
 FROM node:12.13.0-slim
