@@ -28,7 +28,7 @@ WORKDIR /home/app
 COPY package*.json ./
 COPY tsconfig*.json ./
 COPY nodemon*.json ./
-COPY ./worker.ts ./worker.ts
+COPY ./worker/worker.ts ./worker.ts
 COPY ./libs/models/ ./libs/models/
 RUN npm ci --quiet && npm run pure:compile
 
