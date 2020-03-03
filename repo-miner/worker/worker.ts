@@ -3,11 +3,7 @@ import * as util from 'util';
 import * as child_process from 'child_process';
 import { performance } from 'perf_hooks';
 import { Job } from 'bull';
-import { Repository } from '@app/models';
-
-interface RepositoryJob {
-  repo: Repository
-}
+import { Repository, RepositoryJob } from '@app/models';
 
 const exec = util.promisify(child_process.exec);
 const worker = new Worker('analyse', { 

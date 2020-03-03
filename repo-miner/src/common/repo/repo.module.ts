@@ -1,9 +1,10 @@
 import { Module, HttpModule } from '@nestjs/common';
-import { RepoService } from './repo.service';
+import { GithubService } from './github.service';
+import { DependentsSearchService } from './dependents-search/dependents-search.service';
 
 @Module({
   imports: [HttpModule],
-  exports: [RepoService],
-  providers: [RepoService]
+  exports: [GithubService],
+  providers: [GithubService, DependentsSearchService]
 })
 export class RepoModule {}

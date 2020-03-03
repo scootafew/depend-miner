@@ -16,8 +16,6 @@ class GitHubRepoAdapter implements Adapter<Repository> {
     repo.url = json.html_url;
     repo.cloneUrl = json.clone_url;
 
-    console.log("Helloooo")
-
     return repo;
   }
 }

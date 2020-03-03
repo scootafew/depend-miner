@@ -15,7 +15,7 @@ type RateLimits = {
 // Credit https://stackoverflow.com/questions/48021728/add-queueing-to-angulars-httpclient
 // Credit https://github.com/andrewseguin/dashboard/blob/d1bf6e1d87ec2fd1bf38417757576c30514b0145/src/app/service/github.ts
 @Injectable()
-export class RepoService {
+export class GithubService {
 
   options = {
     baseURL: "https://api.github.com",
@@ -39,7 +39,7 @@ export class RepoService {
     this.setupRateLimitedSubject(1000);
   }
 
-  getResourceRateLimits(): void {
+  private getResourceRateLimits(): void {
     this.http.get<GithubRateLimitResponse>('/rate_limit', this.options).subscribe(res => {
       
       this.rateLimits[RateLimitType.Core].next(res.data.resources.core);
@@ -102,14 +102,14 @@ export class RepoService {
     return this.getPages<GitHubCodeSearchResultItem>(url, this.options, RateLimitType.Core);
   }
 
-  getPages<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<T> {
+  private getPages<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<T> {
     return this.getPage<T>(url, options, rateLimitType).pipe(
       expand(({ next }) => next ? this.getPage<T>(next, options, rateLimitType) : empty()),
       concatMap(({ data }) => data)
     )
   }
 
-  getPage<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<{ data: T[], next: string }> {
+  private getPage<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<{ data: T[], next: string }> {
     return this.get<GitHubSearchResult<T>>(url, options, rateLimitType)
       .pipe(
         map(res => {

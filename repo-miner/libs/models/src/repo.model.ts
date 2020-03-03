@@ -7,6 +7,8 @@ export class Repository {
   public url: string;
   public cloneUrl: string;
 
+  public depthFromSearchRoot: number;
+
   public latestArtifact: Artifact;
 
   constructor() {}
