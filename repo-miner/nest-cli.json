@@ -1,4 +1,18 @@
 {
   "collection": "@nestjs/schematics",
-  "sourceRoot": "src"
+  "sourceRoot": "src",
+  "projects": {
+    "models": {
+      "type": "library",
+      "root": "libs/models",
+      "entryFile": "index",
+      "sourceRoot": "libs/models/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/models/tsconfig.lib.json"
+      }
+    }
+  },
+  "compilerOptions": {
+    "webpack": true
+  }
 }

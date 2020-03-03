@@ -1,7 +1,7 @@
 import { Controller, Post, Req, Res, Param, NotFoundException, Body } from '@nestjs/common';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { AnalyseService } from './analyse.service';
-import { Artifact } from 'src/common/repo/repo.model';
+import { Artifact } from '@app/models';
 
 @Controller('analyse')
 export class AnalyseController {

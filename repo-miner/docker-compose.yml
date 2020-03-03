@@ -40,7 +40,7 @@ services:
     command: npm run pure:start-dev
     volumes:
       - ./worker.ts:/home/app/worker.ts
-      - ./repo.model.ts:/home/app/repo.model.ts
+      - ./libs/models:/home/app/libs/models
     depends_on: 
       - redis
       - neo4j

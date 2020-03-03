@@ -1,8 +1,7 @@
 import { Injectable, HttpService, HttpStatus } from '@nestjs/common';
 import { map, expand, concatMap, delay, mergeMap, take, filter, tap, catchError } from 'rxjs/operators';
-import { adapters } from './repo.adapters';
 import { Observable, empty, of, timer, BehaviorSubject, Subject } from 'rxjs';
-import { Repository } from './repo.model';
+import { Repository, adapters } from '@app/models';
 import { AxiosError, AxiosResponse } from 'axios';
 import * as parseLinkHeader from 'parse-link-header';
 import { GithubRateLimit, GithubRateLimitResponse, RateLimitType } from './rateLimit.model';

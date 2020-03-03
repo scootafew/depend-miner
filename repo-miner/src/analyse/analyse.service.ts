@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Queue } from 'bull';
 import { InjectQueue } from '@nestjs/bull';
-import { Repository, Artifact } from 'src/common/repo/repo.model';
+import { Repository, Artifact } from '@app/models';
 import { RepoService } from 'src/common/repo/repo.service';
 import { map, flatMap } from 'rxjs/operators';
 import { GitHubCodeSearchResultItem } from 'src/common/repo/codeSearchResult';

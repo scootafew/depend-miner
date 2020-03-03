@@ -1,4 +1,4 @@
-import { Repository } from "./repo.model";
+import { Repository } from "../repo.model";
 
 interface Adapter<T> {
   adapt(json: string): T

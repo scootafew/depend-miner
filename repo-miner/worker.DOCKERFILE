@@ -29,7 +29,7 @@ COPY package*.json ./
 COPY tsconfig*.json ./
 COPY nodemon*.json ./
 COPY ./worker.ts ./worker.ts
-COPY ./repo.model.ts ./repo.model.ts
+COPY ./libs/models/ ./libs/models/
 RUN npm ci --quiet && npm run pure:compile
 
 # Override entrypoint in jp2g

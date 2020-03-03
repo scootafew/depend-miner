@@ -3,7 +3,7 @@ import * as util from 'util';
 import * as child_process from 'child_process';
 import { performance } from 'perf_hooks';
 import { Job } from 'bull';
-import { Repository } from './repo.model';
+import { Repository } from '@app/models';
 
 interface RepositoryJob {
   repo: Repository
