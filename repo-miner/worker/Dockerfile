@@ -28,9 +28,11 @@ WORKDIR /home/app
 COPY package*.json ./
 COPY tsconfig*.json ./
 COPY nodemon*.json ./
+RUN npm ci --quiet
+
 COPY ./worker/worker.ts ./worker.ts
 COPY ./libs/models/ ./libs/models/
-RUN npm ci --quiet && npm run pure:compile
+RUN npm run pure:compile
 
 # Override entrypoint in jp2g
 ENTRYPOINT []
@@ -40,7 +42,7 @@ ENTRYPOINT []
 # This state compile get back the JavaScript code from development stage
 # It will also install the production package only
 #
-FROM node:12.13.0-slim
+FROM node:12.13.0-slim AS production
 
 WORKDIR /app
 ENV NODE_ENV=production
@@ -49,7 +51,8 @@ COPY package*.json ./
 RUN npm ci --quiet --only=production
 
 ## We just need the build to execute the command
-COPY --from=builder /usr/src/app/dist/worker.js ./dist/
+COPY --from=development /home/app/dist/worker.js ./dist/
+COPY --from=development /home/app/dist/libs/ ./dist/libs/
 COPY ./jp2g ./dist/
 
 CMD ["node", "dist/worker.js"]

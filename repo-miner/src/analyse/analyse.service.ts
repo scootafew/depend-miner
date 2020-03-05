@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Queue } from 'bull';
 import { InjectQueue } from '@nestjs/bull';
-import { Repository, Artifact } from '@app/models';
+import { Repository, Artifact, JobType, ArtifactJob, AnalyseJob } from '@app/models';
 import { GithubService } from 'src/common/repo/github.service';
 import { map } from 'rxjs/operators';
 
@@ -11,7 +11,7 @@ export class AnalyseService {
   constructor(
     @InjectQueue('analyse') private readonly analyseQueue: Queue,
     @InjectQueue('repositorySearch') private readonly repositorySearchQueue: Queue,
-    @InjectQueue('dependentsSearch') private readonly dependentsSearchQueue: Queue,
+    @InjectQueue('dependentsSearch') private readonly dependentsSearchQueue: Queue<ArtifactJob>,
     @InjectQueue('dependencySearch') private readonly dependencySearchQueue: Queue,
     private readonly repoService: GithubService
     ) { }
@@ -20,10 +20,10 @@ export class AnalyseService {
     if (emptyQueue) { this.emptyQueue() };
     console.log(`Processing repository ${repo.fullName}`);
 
-    repo.depthFromSearchRoot = 0;
-
     // add job to queue with lifo so this job will be processed as soon as worker is free
-    this.addToQueue(this.analyseQueue, repo, true);
+    this.analyseQueue.add(JobType.Repository, AnalyseJob.fromRepo(repo, 0), {lifo: true})
+      .then(() => console.log(`Added repo: ${repo.fullName} to queue ${this.analyseQueue.name}`))
+      .catch(err => console.log(err));
 
     // begin search for depencies and dependents
     this.getDependencies(repo);
@@ -31,7 +31,7 @@ export class AnalyseService {
   }
 
   private async addToQueue(queue: Queue, repo: Repository, lifo: boolean = false) {
-    queue.add({repo: repo}, {lifo: lifo})
+    queue.add(JobType.Repository, {repo: repo}, {lifo: lifo})
       .then(() => console.log(`Added repo: ${repo.fullName} to queue ${queue.name}`))
       .catch(err => console.log(err));
   }
@@ -58,7 +58,9 @@ export class AnalyseService {
   }
 
   async getDependents(repo: Repository) {
-    this.addToQueue(this.dependentsSearchQueue, repo);
+    this.dependentsSearchQueue.add(JobType.Artifact, {artifact: repo.latestArtifact, searchDepth: 0})
+      .then(() => console.log(`Added repo: ${repo.fullName} to queue ${this.dependentsSearchQueue.name}`))
+      .catch(err => console.log(err));
   }
 
   emptyQueue() {

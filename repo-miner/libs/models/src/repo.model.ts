@@ -7,11 +7,9 @@ export class Repository {
   public url: string;
   public cloneUrl: string;
 
-  public depthFromSearchRoot: number;
-
   public latestArtifact: Artifact;
 
-  constructor() {}
+  constructor() { }
 }
 
 class Owner {
@@ -27,5 +25,9 @@ export class Artifact {
     public artifactId: string,
     public version: string,
   ) { }
+
+  toString() {
+    return `${this.groupId}:${this.artifactId}:${this.version}`
+  }
   
 }
