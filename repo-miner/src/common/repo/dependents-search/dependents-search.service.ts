@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue, Job } from 'bull';
-import { ArtifactJob, Repository, JobType, Artifact } from '@app/models';
+import { ArtifactJob, Repository, JobType, Artifact, AnalyseJob } from '@app/models';
 import { GithubService } from '../github.service';
-import { flatMap, map } from 'rxjs/operators';
+import { flatMap, map, take } from 'rxjs/operators';
 
 @Injectable()
 export class DependentsSearchService {
@@ -25,9 +25,10 @@ export class DependentsSearchService {
 
       let query = this.buildQueryString(artifact);
       this.repoService.searchCode(query).pipe(
+        take(10),
         flatMap(item => this.repoService.getRepositoryInBackground(item.repository.owner.login, item.repository.name, "GitHub")), // change to repo search queue?
       ).subscribe(repo => {
-        this.addRepoToQueue(this.analyseQueue, repo);
+        this.addRepoToQueue(this.analyseQueue, repo, searchDepth);
         // if ((searchDepth + 1) < +process.env.MAX_SEARCH_DEPTH) {
         //   this.addToQueue(this.dependentsSearchQueue, repo); // Need to limit depth
         //   // this.addToQueue(this.dependencySearchQueue, repo); // Need to limit depth
@@ -44,8 +45,8 @@ export class DependentsSearchService {
   }
 
   // Duplicated code
-  private async addRepoToQueue(queue: Queue, repo: Repository, lifo: boolean = false) {
-    queue.add(JobType.Repository, {repo: repo}, {lifo: lifo})
+  private async addRepoToQueue(queue: Queue, repo: Repository, previousSearchDepth: number, lifo: boolean = false) {
+    queue.add(JobType.Repository, AnalyseJob.fromRepo(repo, previousSearchDepth + 1), {lifo: lifo})
       .then(() => console.log(`Added repo: ${repo.fullName} to queue ${queue.name}`))
       .catch(err => console.log(err));
   }

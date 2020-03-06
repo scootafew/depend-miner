@@ -56,7 +56,8 @@ async function setupWorker() {
 
   analyseQueue.process('*', async (job: Job<AnalyseJob>, done) => {
     const jobData = job.data;
-    console.log(`Analysing: ${jobData.name}`);
+    console.log(jobData);
+    console.log(`\u001b[1;34m Analysing: ${jobData.name}`);
 
     try {
       const processingResult = await anaylse(jobData.name, jobData.uri);
@@ -105,12 +106,14 @@ async function spawnProcess(opts: string[]): Promise<ProcessingResult> {
 
         // Add artifact
         if (stdout.startsWith("Found maven artifact: ")) {
+          console.log("Storing artifact");
           let [groupId, artifactId, version] = stdout.replace("Found maven dependency: ", "").split(":");
           artifacts = [...artifacts, new Artifact(groupId, artifactId, version)]
         }
 
         // Add dependency
         if (stdout.startsWith("Found maven dependency: ")) {
+          console.log("Storing dependency");
           let [groupId, artifactId, version] = stdout.replace("Found maven dependency: ", "").split(":");
           dependencies = [...dependencies, new Artifact(groupId, artifactId, version)]
         }
@@ -145,16 +148,16 @@ async function handleProcessingResult(jobType: JobType, result: ProcessingResult
   // Only if repository job as otherwise dependents search will already have been performed for artifact
   if (jobType == JobType.Repository) {
     result.processedArtifacts.map(artifact => {
-      dependentsSearchQueue.add(JobType.Artifact, {artifact: artifact, searchDepth: prevSearchDepth + 1})
-      .then(() => console.log(`Added artifact: ${artifact.toString()} to queue ${dependentsSearchQueue.name}`))
+      dependentsSearchQueue.add(JobType.Artifact, {artifact: artifact, searchDepth: prevSearchDepth})
+      .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${dependentsSearchQueue.name}`))
       .catch(err => console.log(err));
     })
   }
 
   // Queue dependency processing
   result.dependencies.map(artifact => {
-    analyseQueue.add(JobType.Artifact, {artifact: artifact, searchDepth: prevSearchDepth + 1})
-    .then(() => console.log(`Added artifact: ${artifact.toString()} to queue ${dependencySearchQueue.name}`))
+    analyseQueue.add(JobType.Artifact, AnalyseJob.fromArtifact(artifact, prevSearchDepth + 1))
+    .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${dependencySearchQueue.name}`))
     .catch(err => console.log(err));
   })
 }
