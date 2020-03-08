@@ -55,29 +55,32 @@ async function setupWorker() {
   console.log("Emptied queue");
 
   analyseQueue.process('*', async (job: Job<AnalyseJob>, done) => {
-    const jobData = job.data;
-    console.log(jobData);
-    console.log(`\u001b[1;34m Analysing: ${jobData.name}`);
+    console.log(job.data);
+
+    const { name, args, searchDepth, type } = job.data;
+    console.log(`\u001b[1;34m Analysing: ${name}`);
+    console.log(`\u001b[1;34m Job Type: ${type}`);
 
     try {
-      const processingResult = await anaylse(jobData.name, jobData.uri);
+      const processingResult = await anaylse(name, args);
 
-      if (jobData.searchDepth < +process.env.MAX_SEARCH_DEPTH) {
-        handleProcessingResult(JobType[job.name], processingResult, jobData.searchDepth);
+      console.log(`Search depth: ${searchDepth}/${process.env.MAX_SEARCH_DEPTH}`);
+      if (searchDepth < +process.env.MAX_SEARCH_DEPTH) {
+        handleProcessingResult(type, processingResult, searchDepth);
       }
       
       done(null, processingResult);
     } catch (err) {
-      console.log(`Got error analysing: ${jobData.name}`);
+      console.log(`Got error analysing: ${name}`);
       done(new Error(err.message));
     }
   })
 }
 
-async function anaylse(name: string, analysisIdentifier: string): Promise<ProcessingResult> {
+async function anaylse(name: string, args: string[]): Promise<ProcessingResult> {
   const startTime = performance.now();
   // const { stdout, stderr } = await exec(command);
-  const processingResult = await spawnProcess([...opts, `${analysisIdentifier}`]);
+  const processingResult = await spawnProcess([...opts, ...args]);
   const endTime = performance.now();
 
   processingResult.timeTaken = endTime - startTime;
@@ -88,9 +91,9 @@ async function anaylse(name: string, analysisIdentifier: string): Promise<Proces
   return processingResult;
 }
 
-async function spawnProcess(opts: string[]): Promise<ProcessingResult> {
+async function spawnProcess(args: string[]): Promise<ProcessingResult> {
   return new Promise(function (resolve, reject) {
-    let javaProcess = child_process.spawn("java", opts);
+    let javaProcess = child_process.spawn("java", args);
     javaProcess.stdout.pipe(process.stdout);
     javaProcess.stderr.pipe(process.stderr);
 
@@ -102,21 +105,23 @@ async function spawnProcess(opts: string[]): Promise<ProcessingResult> {
     javaProcess.stdout.on("data", (data: Buffer) => {
        // Line could be single linefeed char, if so ignore
       if (data.length > 1) {
-        let stdout = data.toString('utf8');
+        let stdout = data.toString('utf8').split(/[\r\n]+/g);
 
-        // Add artifact
-        if (stdout.startsWith("Found maven artifact: ")) {
-          console.log("Storing artifact");
-          let [groupId, artifactId, version] = stdout.replace("Found maven dependency: ", "").split(":");
-          artifacts = [...artifacts, new Artifact(groupId, artifactId, version)]
-        }
+        stdout.forEach(line => {
+          // Add artifact
+          if (line.startsWith("Found maven artifact: ")) {
+            console.log("Storing artifact");
+            let [groupId, artifactId, version] = line.replace("Found maven dependency: ", "").split(":");
+            artifacts = [...artifacts, new Artifact(groupId, artifactId, version)]
+          }
 
-        // Add dependency
-        if (stdout.startsWith("Found maven dependency: ")) {
-          console.log("Storing dependency");
-          let [groupId, artifactId, version] = stdout.replace("Found maven dependency: ", "").split(":");
-          dependencies = [...dependencies, new Artifact(groupId, artifactId, version)]
-        }
+          // Add dependency
+          if (line.startsWith("Found maven dependency: ")) {
+            console.log("Storing dependency");
+            let [groupId, artifactId, version] = line.replace("Found maven dependency: ", "").split(":");
+            dependencies = [...dependencies, new Artifact(groupId, artifactId, version)]
+          }
+        })
       }
     })
 

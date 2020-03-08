@@ -37,6 +37,7 @@ services:
       - NEO4J_URL=bolt://neo4j:neo4j@neo4j:7687
       - M2_HOME=/usr/share/maven
       - JP2G_JAR=/home/app/jp2g/target/java-parse-to-graph-1.0-SNAPSHOT.jar
+      - MAX_SEARCH_DEPTH=1
     # command: "sh -c 'node /app/build/worker.js'"
     command: npm run pure:start-dev
     volumes:

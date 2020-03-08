@@ -4,16 +4,18 @@ export class AnalyseJob {
   
   private constructor(
     public name: string,
-    public uri: string,
-    public searchDepth: number
+    public args: string[],
+    public searchDepth: number,
+    public type: JobType
   ) { }
 
   static fromRepo(repo: Repository, searchDepth: number) {
-    return new this(repo.fullName, repo.cloneUrl, searchDepth)
+    let jobArgs = [repo.cloneUrl, ...(repo.pathToPomWithDependency ? repo.pathToPomWithDependency : [])];
+    return new this(repo.fullName, jobArgs, searchDepth, JobType.Repository)
   }
 
   static fromArtifact(artifact: Artifact, searchDepth: number) {
-    return new this(artifact.toString(), artifact.toString(), searchDepth)
+    return new this(artifact.toString(), [artifact.toString()], searchDepth, JobType.Artifact)
   }
 }
 

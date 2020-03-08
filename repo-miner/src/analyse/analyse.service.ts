@@ -26,8 +26,8 @@ export class AnalyseService {
       .catch(err => console.log(err));
 
     // begin search for depencies and dependents
-    this.getDependencies(repo);
-    this.getDependents(repo);
+    // this.getDependencies(repo);
+    // this.getDependents(repo);
   }
 
   private async addToQueue(queue: Queue, repo: Repository, lifo: boolean = false) {
