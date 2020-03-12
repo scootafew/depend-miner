@@ -3,7 +3,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue, Job } from 'bull';
 import { ArtifactJob, Repository, JobType, Artifact, AnalyseJob } from '@app/models';
 import { GithubService } from '../github.service';
-import { flatMap, map, take } from 'rxjs/operators';
+import { flatMap, map, take, filter } from 'rxjs/operators';
 
 @Injectable()
 export class DependentsSearchService {
@@ -25,8 +25,14 @@ export class DependentsSearchService {
 
       let query = this.buildQueryString(artifact);
       this.repoService.searchCode(query).pipe(
-        take(10),
-        flatMap(item => this.repoService.getRepositoryInBackground(item.repository.owner.login, item.repository.name, "GitHub")), // change to repo search queue?
+        flatMap(item => this.repoService.getRepositoryInBackground(item.repository.owner.login, item.repository.name, "GitHub").pipe(
+          map(repo => {
+            repo.pathToPomWithDependency = item.path;
+            return repo;
+          })
+        )), // change to repo retrieval queue?
+        filter(repo => !repo.isFork && repo.stars > 0),
+        // take(10)
       ).subscribe(repo => {
         this.addRepoToQueue(this.analyseQueue, repo, searchDepth);
         // if ((searchDepth + 1) < +process.env.MAX_SEARCH_DEPTH) {

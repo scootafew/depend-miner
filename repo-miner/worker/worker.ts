@@ -111,14 +111,16 @@ async function spawnProcess(args: string[]): Promise<ProcessingResult> {
           // Add artifact
           if (line.startsWith("Found maven artifact: ")) {
             console.log("Storing artifact");
-            let [groupId, artifactId, version] = line.replace("Found maven dependency: ", "").split(":");
+            let artifact = line.replace("Found maven dependency: ", "");
+            let [groupId, artifactId, version] = artifact.split(":");
             artifacts = [...artifacts, new Artifact(groupId, artifactId, version)]
           }
 
           // Add dependency
           if (line.startsWith("Found maven dependency: ")) {
             console.log("Storing dependency");
-            let [groupId, artifactId, version] = line.replace("Found maven dependency: ", "").split(":");
+            let dependency = line.replace("Found maven dependency: ", "")
+            let [groupId, artifactId, version] = dependency.split(":");
             dependencies = [...dependencies, new Artifact(groupId, artifactId, version)]
           }
         })

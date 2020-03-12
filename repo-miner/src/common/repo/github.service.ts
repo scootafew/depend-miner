@@ -1,5 +1,5 @@
 import { Injectable, HttpService, HttpStatus } from '@nestjs/common';
-import { map, expand, concatMap, delay, mergeMap, take, filter, tap, catchError } from 'rxjs/operators';
+import { map, expand, concatMap, delay, mergeMap, take, filter, tap, catchError, retryWhen, ignoreElements, startWith } from 'rxjs/operators';
 import { Observable, empty, of, timer, BehaviorSubject, Subject } from 'rxjs';
 import { Repository, adapters } from '@app/models';
 import { AxiosError, AxiosResponse } from 'axios';
@@ -7,6 +7,7 @@ import * as parseLinkHeader from 'parse-link-header';
 import { GithubRateLimit, GithubRateLimitResponse, RateLimitType } from './rateLimit.model';
 import { GitHubSearchResult, GitHubCodeSearchResultItem } from './codeSearchResult';
 import { PendingRequest } from './pendingRequest';
+import { genericRetryStrategy } from './http.helpers';
 
 type RateLimits = {
   [key in RateLimitType]: BehaviorSubject<GithubRateLimit>
@@ -36,7 +37,7 @@ export class GithubService {
 
   constructor(private readonly http: HttpService) {
     this.getResourceRateLimits();
-    this.setupRateLimitedSubject(1000);
+    this.setupRateLimitedSubject(2000);
   }
 
   private getResourceRateLimits(): void {
@@ -49,7 +50,7 @@ export class GithubService {
 
   private setupRateLimitedSubject(rate: number): void {
     this.backgroundRequestQueue$.pipe(
-      concatMap(item => of(item).pipe(delay(rate))) // Delay request by rate param (milliseconds)
+      concatMap(item => timer(rate).pipe(ignoreElements(), startWith(item))) // Delay request by rate param (milliseconds)
     ).subscribe(pending => {
       this.execute(pending);
     })
@@ -132,7 +133,9 @@ export class GithubService {
   private get<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<AxiosResponse<T>> {
     return this.waitForRateLimit(rateLimitType)
       .pipe(
-        mergeMap(() => this.http.get<T>(url, options)),
+        mergeMap(() => this.http.get<T>(url, options).pipe(
+          retryWhen(genericRetryStrategy({ excludedStatusCodes: [403] }))
+        )),
         tap(response => this.updateRateLimit(rateLimitType, response))
       );
   }

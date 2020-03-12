@@ -10,7 +10,7 @@ export class AnalyseJob {
   ) { }
 
   static fromRepo(repo: Repository, searchDepth: number) {
-    let jobArgs = [repo.cloneUrl, ...(repo.pathToPomWithDependency ? repo.pathToPomWithDependency : [])];
+    let jobArgs = [repo.cloneUrl, ...(repo.pathToPomWithDependency ? [repo.pathToPomWithDependency] : [])];
     return new this(repo.fullName, jobArgs, searchDepth, JobType.Repository)
   }
 

@@ -20,7 +20,12 @@ const REDIS_CONFIG = {
       },
       {
         name: 'dependentsSearch',
-        redis: REDIS_CONFIG
+        redis: REDIS_CONFIG,
+        limiter: {
+          duration: 65000, // every 65 seconds
+          max: 3, // 3 jobs
+          bounceBack: true
+        }
       },
       {
         name: 'dependencySearch',
