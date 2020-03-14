@@ -15,7 +15,7 @@ const REDIS_CONFIG = {
         redis: REDIS_CONFIG
       },
       {
-        name: 'repositorySearch',
+        name: 'repositoryFetch',
         redis: REDIS_CONFIG
       },
       {

@@ -1,7 +1,7 @@
 import { Injectable, HttpService, HttpStatus } from '@nestjs/common';
 import { map, expand, concatMap, delay, mergeMap, take, filter, tap, catchError, retryWhen, ignoreElements, startWith } from 'rxjs/operators';
 import { Observable, empty, of, timer, BehaviorSubject, Subject, from, ReplaySubject } from 'rxjs';
-import { Repository, adapters } from '@app/models';
+import { Repository, adapters, RepositoryFetchJob } from '@app/models';
 import { AxiosError, AxiosResponse } from 'axios';
 import * as parseLinkHeader from 'parse-link-header';
 import { GithubRateLimit, GithubRateLimitResponse, RateLimitType } from './rateLimit.model';
@@ -25,10 +25,10 @@ const REDIS_CONFIG = {
 @Injectable()
 export class GithubService {
 
-  private repositoryFetchQueue = new BullQueue('repositoryFetchQueue', {
+  private repositoryFetchQueue = new BullQueue('githubRepositoryFetchQueue', {
     redis: REDIS_CONFIG,
     limiter: {
-      duration: 5000, // every 5 seconds
+      duration: 2000, // every 5 seconds
       max: 1, // 1 jobs
       bounceBack: false
     }
@@ -51,7 +51,9 @@ export class GithubService {
     [RateLimitType.Search]: new BehaviorSubject(null)
   }
 
-  constructor(private readonly http: HttpService) {
+  constructor(private readonly http: HttpService,
+    // private repositoryFetchQueue: Queue
+    ) {
     this.getResourceRateLimits();
     // this.setupRateLimitedSubject(2000);
     this.setupQueueProcessor();
@@ -99,6 +101,7 @@ export class GithubService {
     const request = new PendingRequest(`/repos/${user}/${repoName}`, RateLimitType.Core);
     let resSubject = new Subject<Repository>();
     this.repositoryFetchQueue.add(request, {lifo: true}).then((job: Job) => {
+      console.log(`\u001b[1;32m Added job ${user}/${repoName} to queue ${this.repositoryFetchQueue.name} in GHS`);
       job.finished().then(res => {
         resSubject.next(res);
         resSubject.complete();
@@ -114,7 +117,7 @@ export class GithubService {
   }
 
   // TODO: allowDuplicates seems to violate separation of concerns
-  getRepositoriesInBackground(repos: Observable<{user: string, repoName: string}>, allowDuplicates?: boolean): Observable<Repository> {
+  getRepositoriesInBackground(repos: Observable<RepositoryFetchJob>, allowDuplicates?: boolean): Observable<Repository> {
     const resultSubject = new Subject<Repository>();
     let ids = [];
 
@@ -145,6 +148,7 @@ export class GithubService {
       this.repositoryFetchQueue.on("completed", (result: Job) => {
         if (result.id == jobId) {
           resultSubject.next(result.returnvalue);
+          resultSubject.complete();
         }
       })
     })
@@ -156,6 +160,24 @@ export class GithubService {
     //   }
     // })
     return resultSubject.asObservable();
+  }
+
+  getRepositoryInBackgroundWithCallback(user: string, repoName: string, then: (n: Repository) => any): void {
+    // if (!queue exists) {
+    //   createQueue()
+    //   queue on complete do callback
+    // }
+    // addToQueue
+    const request = new PendingRequest(`/repos/${user}/${repoName}`, RateLimitType.Core);
+    this.repositoryFetchQueue.add(request).then((job: Job) => {
+      const jobId = job.id;
+
+      this.repositoryFetchQueue.on("completed", (result: Job) => {
+        if (result.id == jobId) {
+          then(result.returnvalue);
+        }
+      })
+    })
   }
 
   private addRequestToQueue(url: string): Observable<Repository> {

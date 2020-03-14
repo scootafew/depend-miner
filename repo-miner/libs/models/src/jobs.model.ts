@@ -23,6 +23,12 @@ export interface SearchJob {
   searchDepth: number
 }
 
+export interface RepositoryFetchJob {
+  user: string,
+  repoName: string
+  searchDepth?: number
+}
+
 export interface RepositoryJob extends SearchJob {
   repo: Repository
 }

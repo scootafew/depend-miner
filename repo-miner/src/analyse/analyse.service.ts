@@ -10,7 +10,7 @@ export class AnalyseService {
 
   constructor(
     @InjectQueue('analyse') private readonly analyseQueue: Queue,
-    @InjectQueue('repositorySearch') private readonly repositorySearchQueue: Queue,
+    @InjectQueue('repositoryFetch') private readonly repositoryFetchQueue: Queue,
     @InjectQueue('dependentsSearch') private readonly dependentsSearchQueue: Queue<ArtifactJob>,
     @InjectQueue('dependencySearch') private readonly dependencySearchQueue: Queue,
     private readonly repoService: GithubService
@@ -65,7 +65,7 @@ export class AnalyseService {
 
   emptyQueue() {
     this.analyseQueue.empty();
-    this.repositorySearchQueue.empty();
+    this.repositoryFetchQueue.empty();
     this.dependencySearchQueue.empty();
     this.dependentsSearchQueue.empty();
   }
