@@ -4,6 +4,7 @@ import { Queue, Job } from 'bull';
 import { ArtifactJob, Repository, JobType, Artifact, AnalyseJob } from '@app/models';
 import { GithubService } from '../github.service';
 import { flatMap, map, take, filter } from 'rxjs/operators';
+import { Observable } from 'rxjs';
 
 @Injectable()
 export class DependentsSearchService {
@@ -24,13 +25,14 @@ export class DependentsSearchService {
       console.log("Getting dependents for artifact:", artifact);
 
       let query = this.buildQueryString(artifact);
-      this.repoService.searchCode(query).pipe(
-        flatMap(item => this.repoService.getRepositoryInBackground(item.repository.owner.login, item.repository.name, "GitHub").pipe(
-          map(repo => {
-            repo.pathToPomWithDependency = item.path;
-            return repo;
-          })
-        )), // change to repo retrieval queue?
+      this.repoService.getRepositoriesInBackground(this.searchCode(query)).pipe(
+        // flatMap(item => this.repoService.getRepositoryInBackground(item.repository.owner.login, item.repository.name, "GitHub").pipe(
+          // map(repo => {
+          //   repo.pathToPomWithDependency = item.path;
+          //   return repo;
+          // })
+        // )), // change to repo retrieval queue?
+
         filter(repo => !repo.isFork && repo.stars > 0),
         // take(10)
       ).subscribe(repo => {
@@ -45,6 +47,12 @@ export class DependentsSearchService {
     });
   }
 
+  private searchCode(query: string): Observable<{user: string, repoName: string}> {
+    return this.repoService.searchCode(query).pipe(
+      map(item => ({user: item.repository.owner.login, repoName: item.repository.name}))
+    );
+  }
+
   private buildQueryString(artifact: Artifact) {
     return `<artifactId>${artifact.artifactId}</artifactId> filename:pom extension:xml`;
     // return `<artifactId>${artifactId}</artifactId> <version>${version}</version> filename:pom extension:xml`;
@@ -52,6 +60,7 @@ export class DependentsSearchService {
 
   // Duplicated code
   private async addRepoToQueue(queue: Queue, repo: Repository, previousSearchDepth: number, lifo: boolean = false) {
+    console.log(`\u001b[1;35m Adding repo: ${repo.fullName} to queue ${queue.name}`);
     queue.add(JobType.Repository, AnalyseJob.fromRepo(repo, previousSearchDepth + 1), {lifo: lifo})
       .then(() => console.log(`Added repo: ${repo.fullName} to queue ${queue.name}`))
       .catch(err => console.log(err));

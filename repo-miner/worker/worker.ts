@@ -4,7 +4,8 @@ import * as child_process from 'child_process';
 import * as Redis from 'ioredis';
 import { performance } from 'perf_hooks';
 import { Job, Queue } from 'bull';
-import { Repository, RepositoryJob, Artifact, ArtifactJob, JobType, AnalyseJob } from '@app/models';
+import { Repository, Artifact, JobType, AnalyseJob } from '@app/models';
+import { Readable } from 'stream';
 
 // https://github.com/OptimalBits/bull/blob/master/PATTERNS.md
 
@@ -72,7 +73,7 @@ async function setupWorker() {
       done(null, processingResult);
     } catch (err) {
       console.log(`Got error analysing: ${name}`);
-      done(new Error(err.message));
+      done(new Error(`${job.data.name} - ${err.message}`));
     }
   })
 }
@@ -149,6 +150,39 @@ async function spawnProcess(args: string[]): Promise<ProcessingResult> {
     });
   })
 };
+
+async function handleStdout(stdout: Readable) {
+  stdout.pipe(process.stdout);
+
+  let artifacts: Artifact[] = [];
+  let dependencies: Artifact[] = [];
+
+  stdout.on("data", (data: Buffer) => {
+    // Line could be single linefeed char, if so ignore
+   if (data.length > 1) {
+     let lines = data.toString('utf8').split(/[\r\n]+/g);
+
+     lines.forEach(line => {
+       // Add artifact
+       if (line.startsWith("Found maven artifact: ")) {
+         console.log("Storing artifact");
+         let artifact = line.replace("Found maven dependency: ", "");
+         let [groupId, artifactId, version] = artifact.split(":");
+         artifacts = [...artifacts, new Artifact(groupId, artifactId, version)]
+       }
+
+       // Add dependency
+       if (line.startsWith("Found maven dependency: ")) {
+         console.log("Storing dependency");
+         let dependency = line.replace("Found maven dependency: ", "")
+         let [groupId, artifactId, version] = dependency.split(":");
+         dependencies = [...dependencies, new Artifact(groupId, artifactId, version)]
+       }
+     })
+   }
+ })
+ return { artifacts: artifacts, dependencies: dependencies };
+}
 
 async function handleProcessingResult(jobType: JobType, result: ProcessingResult, prevSearchDepth: number) {
   // Queue dependents processing
