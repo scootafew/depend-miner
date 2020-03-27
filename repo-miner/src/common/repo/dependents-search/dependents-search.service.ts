@@ -14,16 +14,15 @@ export class DependentsSearchService {
     @InjectQueue('analyse') private readonly analyseQueue: Queue,
     @InjectQueue('repositoryFetch') private readonly repositoryFetchQueue: Queue<RepositoryFetchJob>,
     @InjectQueue('dependentsSearch') private readonly dependentsSearchQueue: Queue,
-    @InjectQueue('dependencySearch') private readonly dependencySearchQueue: Queue,
     private readonly repoService: GithubService
     ) {
       console.log("Created Dependents Search Service!");
-      this.setupQueueProcessor(dependentsSearchQueue);
+      this.setupQueueProcessor();
       this.setupRepositoryFetchQueueProcessor();
   }
 
-  private setupQueueProcessor(queue: Queue) {
-    queue.process(JobType.Artifact, async (job: Job<ArtifactJob>, done) => {
+  private setupQueueProcessor() {
+    this.dependentsSearchQueue.process(JobType.Artifact, async (job: Job<ArtifactJob>, done) => {
       const { artifact, searchDepth } = job.data;
       console.log("Getting dependents for artifact:", artifact);
 
@@ -33,38 +32,14 @@ export class DependentsSearchService {
       ).subscribe(repoFetchJob => {
         console.log(`\u001b[1;36m Added ${repoFetchJob.user}/${repoFetchJob.repoName} to queue ${this.repositoryFetchQueue.name} in DSS`);
         const jobOptions = {jobId: `${repoFetchJob.user}/${repoFetchJob.user}`}; // overriding job ID prevents duplicates as won't be unique
+        
         this.repositoryFetchQueue.add(repoFetchJob, jobOptions).catch(reason => console.log("\u001b[1;31m ERROR: " + reason));
       })
-    //   this.repoService.getRepositoriesInBackground(this.searchCode(query)).pipe(
-    //     // flatMap(item => this.repoService.getRepositoryInBackground(item.repository.owner.login, item.repository.name, "GitHub").pipe(
-    //       // map(repo => {
-    //       //   repo.pathToPomWithDependency = item.path;
-    //       //   return repo;
-    //       // })
-    //     // )), // change to repo retrieval queue?
-
-    //     filter(repo => !repo.isFork && repo.stars > 0),
-    //     // take(10)
-    //   ).subscribe(repo => {
-    //     this.addRepoToQueue(this.analyseQueue, repo, searchDepth);
-    //     // if ((searchDepth + 1) < +process.env.MAX_SEARCH_DEPTH) {
-    //     //   this.addToQueue(this.dependentsSearchQueue, repo); // Need to limit depth
-    //     //   // this.addToQueue(this.dependencySearchQueue, repo); // Need to limit depth
-    //     // }
-    //   })
 
       done();
     });
   }
 
-  afterFetchThen = (done: DoneCallback, searchDepth: number) => (repo: Repository) => {
-    if (!repo.isFork && repo.stars > 0) {
-      this.addRepoToQueue(this.analyseQueue, repo, searchDepth);
-    }
-    done();
-  }
-
-  // TODO: Provide then callback
   private setupRepositoryFetchQueueProcessor() {
     this.repositoryFetchQueue.process(async (job: Job<RepositoryFetchJob>, done) => {
       const {user, repoName, searchDepth} = job.data;
@@ -77,17 +52,6 @@ export class DependentsSearchService {
         done();
       })
     })
-    // this.repositoryFetchQueue.process(async (job: Job<RepositoryFetchJob>, done) => {
-    //   const {user, repoName, searchDepth} = job.data;
-    //   console.log(`\u001b[1;36m Processing ${user}/${repoName} from queue ${this.repositoryFetchQueue.name} in DSS`);
-    //   this.repoService.getRepositoryInBackgroundWithCallback(user, repoName, this.afterFetchThen(done, searchDepth));
-    // })
-  }
-
-  private searchCode(query: string): Observable<RepositoryFetchJob> {
-    return this.repoService.searchCode(query).pipe(
-      map(item => ({user: item.repository.owner.login, repoName: item.repository.name}))
-    );
   }
 
   private buildQueryString(artifact: Artifact) {
