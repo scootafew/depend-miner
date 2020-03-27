@@ -1,7 +1,7 @@
 import { Injectable, HttpService, HttpStatus } from '@nestjs/common';
-import { map, expand, concatMap, delay, mergeMap, take, filter, tap, catchError, retryWhen, ignoreElements, startWith, finalize } from 'rxjs/operators';
-import { Observable, empty, of, timer, BehaviorSubject, Subject, from, ReplaySubject } from 'rxjs';
-import { Repository, adapters, RepositoryFetchJob } from '@app/models';
+import { map, expand, concatMap, mergeMap, take, filter, tap, catchError, retryWhen } from 'rxjs/operators';
+import { Observable, empty, of, timer, BehaviorSubject, Subject } from 'rxjs';
+import { Repository, adapters } from '@app/models';
 import { AxiosError, AxiosResponse } from 'axios';
 import * as parseLinkHeader from 'parse-link-header';
 import { GithubRateLimit, GithubRateLimitResponse, RateLimitType } from './rateLimit.model';
@@ -9,7 +9,7 @@ import { GitHubSearchResult, GitHubCodeSearchResultItem } from './codeSearchResu
 import { PendingRequest } from './pendingRequest';
 import { genericRetryStrategy } from './http.helpers';
 import * as BullQueue from 'bull';
-import { Job, Queue } from 'bull';
+import { Job } from 'bull';
 
 type RateLimits = {
   [key in RateLimitType]: BehaviorSubject<GithubRateLimit>
@@ -67,13 +67,13 @@ export class GithubService {
     })
   }
 
-  private setupRateLimitedSubject(rate: number): void {
-    this.backgroundRequestQueue$.pipe(
-      concatMap(item => timer(rate).pipe(ignoreElements(), startWith(item))) // Delay request by rate param (milliseconds)
-    ).subscribe(pending => {
-      this.execute(pending);
-    })
-  }
+  // private setupRateLimitedSubject(rate: number): void {
+  //   this.backgroundRequestQueue$.pipe(
+  //     concatMap(item => timer(rate).pipe(ignoreElements(), startWith(item))) // Delay request by rate param (milliseconds)
+  //   ).subscribe(pending => {
+  //     this.execute(pending);
+  //   })
+  // }
 
   private setupQueueProcessor(): void {
     this.repositoryFetchQueue.process(async (job: Job) => {
@@ -112,119 +112,103 @@ export class GithubService {
     return resSubject.asObservable();
   }
 
-  getRepositoryInBackground1(user: string, repo: string, source: string): Observable<Repository> {
-    return this.addRequestToQueue(`/repos/${user}/${repo}`);
-  }
+  // getRepositoryInBackground1(user: string, repo: string, source: string): Observable<Repository> {
+  //   return this.addRequestToQueue(`/repos/${user}/${repo}`);
+  // }
 
-  // TODO: allowDuplicates seems to violate separation of concerns
-  getRepositoriesInBackground(repos: Observable<RepositoryFetchJob>, allowDuplicates?: boolean): Observable<Repository> {
-    const resultSubject = new Subject<Repository>();
-    let ids = [];
+  // // TODO: allowDuplicates seems to violate separation of concerns
+  // getRepositoriesInBackground(repos: Observable<RepositoryFetchJob>, allowDuplicates?: boolean): Observable<Repository> {
+  //   const resultSubject = new Subject<Repository>();
 
-    repos.pipe(
-      finalize(() => resultSubject.complete()) // Complete result on source complete
-    ).subscribe(repo => {
-      const request = new PendingRequest(`/repos/${repo.user}/${repo.repoName}`, RateLimitType.Core);
-      const jobOptions = allowDuplicates ? {} : {jobId: `${repo.user}/${repo.repoName}`}; // overriding job ID prevents duplicates as won't be unique
-      this.repositoryFetchQueue.add(request, jobOptions).then((job: Job) => {
-        console.log(`\u001b[1;32m Added job ${repo.user}/${repo.repoName} to queue`);
-        ids = [...ids, job.id];
-        job.finished().then((result: Repository) => {
-          resultSubject.next(result);
-          return Promise.resolve();
-        })
-        return Promise.resolve();
-      })
-    });
+  //   repos.pipe(
+  //     finalize(() => resultSubject.complete()) // Complete result on source complete
+  //   ).subscribe(repo => {
+  //     const request = new PendingRequest(`/repos/${repo.user}/${repo.repoName}`, RateLimitType.Core);
+  //     const jobOptions = allowDuplicates ? {} : {jobId: `${repo.user}/${repo.repoName}`}; // overriding job ID prevents duplicates as won't be unique
+  //     this.repositoryFetchQueue.add(request, jobOptions).then((job: Job) => {
+  //       console.log(`\u001b[1;32m Added job ${repo.user}/${repo.repoName} to queue`);
 
-    console.log()
+  //       job.finished().then((result: Repository) => {
+  //         resultSubject.next(result);
+  //       })
+  //     })
+  //   });
 
-    // this.repositoryFetchQueue.on("completed", (result: Job) => {
-    //   if (ids.includes(result.id)) {
-    //     resultSubject.next(result.returnvalue);
-    //   }
-    // })
-    return resultSubject.asObservable();
-  }
+  //   return resultSubject.asObservable();
+  // }
 
   // NEW
   getRepositoryInBackground(user: string, repoName: string, source: string): Observable<Repository> {
     console.log("\u001b[1;32m Listeners: " + this.repositoryFetchQueue.listenerCount('completed'));
     const resultSubject = new Subject<Repository>();
     const request = new PendingRequest(`/repos/${user}/${repoName}`, RateLimitType.Core);
-    this.repositoryFetchQueue.add(request).then((job: Job) => {
-      const jobId = job.id;
 
+    this.repositoryFetchQueue.add(request).then((job: Job) => {
       job.finished().then((result: Repository) => {
         resultSubject.next(result);
         resultSubject.complete();
       })
+    }).catch(reason => console.log("\u001b[1;31m ERROR: " + reason));
 
-      // this.repositoryFetchQueue.on("completed", (result: Job) => {
-      //   if (result.id == jobId) {
-      //     resultSubject.next(result.returnvalue);
-      //     resultSubject.complete();
-      //   }
-      // })
-    }).catch(reason => console.log("\u001b[1;31m ERROR: " + reason))
-    // const jobId = (await this.repositoryFetchQueue.add({user: user, repo: repo})).id;
-
-    // this.repositoryFetchQueue.on("completed", (result: Job) => {
-    //   if (result.id == jobId) {
-    //     resultSubject.next(result.returnvalue);
-    //   }
-    // })
     return resultSubject.asObservable();
   }
 
-  getRepositoryInBackgroundWithCallback(user: string, repoName: string, then: (n: Repository) => any): void {
-    // if (!queue exists) {
-    //   createQueue()
-    //   queue on complete do callback
-    // }
-    // addToQueue
-    const request = new PendingRequest(`/repos/${user}/${repoName}`, RateLimitType.Core);
-    this.repositoryFetchQueue.add(request).then((job: Job) => {
-      const jobId = job.id;
+  // getRepositoryInBackgroundWithCallback(user: string, repoName: string, then: (n: Repository) => any): void {
+  //   // if (!queue exists) {
+  //   //   createQueue()
+  //   //   queue on complete do callback
+  //   // }
+  //   // addToQueue
+  //   const request = new PendingRequest(`/repos/${user}/${repoName}`, RateLimitType.Core);
+  //   this.repositoryFetchQueue.add(request).then((job: Job) => {
+  //     const jobId = job.id;
 
-      this.repositoryFetchQueue.on("completed", (result: Job) => {
-        if (result.id == jobId) {
-          then(result.returnvalue);
-        }
-      })
-    })
-  }
+  //     this.repositoryFetchQueue.on("completed", (result: Job) => {
+  //       if (result.id == jobId) {
+  //         then(result.returnvalue);
+  //       }
+  //     })
+  //   })
+  // }
 
-  private addRequestToQueue(url: string): Observable<Repository> {
-    const sub = new Subject<Repository>();
-    const request = new PendingRequest(url, RateLimitType.Core, sub);
+  // private addRequestToQueue(url: string): Observable<Repository> {
+  //   const sub = new Subject<Repository>();
+  //   const request = new PendingRequest(url, RateLimitType.Core, sub);
 
-    this.backgroundRequestQueue$.next(request);
-    return sub;
-  }
+  //   this.backgroundRequestQueue$.next(request);
+  //   return sub;
+  // }
 
-  private execute1(request: PendingRequest): void {
-    console.log(`Getting url ${request.url}`)
-    this.get<any>(request.url, this.options, request.rateLimitType).pipe(
-      map(res => adapters.get("GitHubRepository").adapt(res.data)),
-    ).subscribe(res => {
-      request.subscription.next(res)
-      request.subscription.complete();
-    }, (err: AxiosError) => {
-      if (err.response?.status == HttpStatus.NOT_FOUND) {
-        console.log(`Repository at ${request.url} not found!`);
-        request.subscription.complete();
-      } else {
-        throw err;
-      }
-    });
-  }
+  // private execute1(request: PendingRequest): void {
+  //   console.log(`Getting url ${request.url}`)
+  //   this.get<any>(request.url, this.options, request.rateLimitType).pipe(
+  //     map(res => adapters.get("GitHubRepository").adapt(res.data)),
+  //   ).subscribe(res => {
+  //     request.subscription.next(res)
+  //     request.subscription.complete();
+  //   }, (err: AxiosError) => {
+  //     if (err.response?.status == HttpStatus.NOT_FOUND) {
+  //       console.log(`Repository at ${request.url} not found!`);
+  //       request.subscription.complete();
+  //     } else {
+  //       throw err;
+  //     }
+  //   });
+  // }
 
   // NEW
   private execute(request: PendingRequest): Observable<Repository> {
     console.log(`Getting url ${request.url}`)
     return this.get<any>(request.url, this.options, request.rateLimitType).pipe(
       map(res => adapters.get("GitHubRepository").adapt(res.data)),
+      catchError((err: any) => {
+        if (err.response?.status == HttpStatus.NOT_FOUND) {
+          console.log(`Repository at ${request.url} not found!`);
+          return empty();
+        } else {
+          throw err;
+        }
+      })
     );
   }
 
@@ -264,7 +248,7 @@ export class GithubService {
     return this.waitForRateLimit(rateLimitType)
       .pipe(
         mergeMap(() => this.http.get<T>(url, options).pipe(
-          retryWhen(genericRetryStrategy({ excludedStatusCodes: [403] }))
+          retryWhen(genericRetryStrategy({ excludedStatusCodes: [403, 404] }))
         )),
         tap(response => this.updateRateLimit(rateLimitType, response))
       );

@@ -3,7 +3,6 @@ import { Queue } from 'bull';
 import { InjectQueue } from '@nestjs/bull';
 import { Repository, Artifact, JobType, ArtifactJob, AnalyseJob } from '@app/models';
 import { GithubService } from 'src/common/repo/github.service';
-import { map } from 'rxjs/operators';
 
 @Injectable()
 export class AnalyseService {
@@ -27,7 +26,7 @@ export class AnalyseService {
 
     // begin search for depencies and dependents
     // this.getDependencies(repo);
-    this.getDependents(repo);
+    // this.getDependents(repo);
   }
 
   private async addToQueue(queue: Queue, repo: Repository, lifo: boolean = false) {
@@ -36,11 +35,8 @@ export class AnalyseService {
       .catch(err => console.log(err));
   }
 
-  async getRepository(user: string, repo: string, latestArtifact?: Artifact): Promise<Repository> {
-    return this.repoService.getRepository(user, repo, "GitHub")
-      .pipe(
-        map(repo => this.setLatestReleaseArtifact(repo, latestArtifact))
-      ).toPromise();
+  async getRepository(user: string, repo: string): Promise<Repository> {
+    return this.repoService.getRepository(user, repo, "GitHub").toPromise();
   }
 
   setLatestReleaseArtifact(repo: Repository, artifact?: Artifact) {
