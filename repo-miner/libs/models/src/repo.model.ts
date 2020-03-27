@@ -8,7 +8,7 @@ export class Repository {
   public cloneUrl: string;
   public isFork: boolean;
   public stars: number;
-  public pathToPomWithDependency?: string;
+  public size: number;
 
   public latestArtifact: Artifact;
 

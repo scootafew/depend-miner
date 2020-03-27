@@ -17,6 +17,7 @@ class GitHubRepoAdapter implements Adapter<Repository> {
     repo.cloneUrl = json.clone_url;
     repo.isFork = (json.fork == "true");
     repo.stars = json.stargazers_count;
+    repo.size = json.size;
 
     return repo;
   }

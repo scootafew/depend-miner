@@ -2,10 +2,14 @@ import * as BullQueue from 'bull';
 import * as util from 'util';
 import * as child_process from 'child_process';
 import * as Redis from 'ioredis';
+import * as promClient from 'prom-client';
+import * as fastify from 'fastify'
+import { Registry, Histogram } from 'prom-client';
 import { performance } from 'perf_hooks';
 import { Job, Queue } from 'bull';
 import { Repository, Artifact, JobType, AnalyseJob } from '@app/models';
 import { Readable } from 'stream';
+import { Server, IncomingMessage, ServerResponse } from 'http'
 
 // https://github.com/OptimalBits/bull/blob/master/PATTERNS.md
 
@@ -14,14 +18,14 @@ const REDIS_CONFIG = {
   host: process.env.REDIS_HOST || "localhost",
   port: Number(process.env.REDIS_PORT) || 6379,
 }
-const client = new Redis(REDIS_CONFIG.port, REDIS_CONFIG.host);
+const redisClient = new Redis(REDIS_CONFIG.port, REDIS_CONFIG.host);
 const subscriber = new Redis(REDIS_CONFIG.port, REDIS_CONFIG.host);
 
 var bullOpts = {
   createClient: function (type) {
     switch (type) {
       case 'client':
-        return client;
+        return redisClient;
       case 'subscriber':
         return subscriber;
       default:
@@ -30,6 +34,17 @@ var bullOpts = {
   }
 }
 
+const metricsRegistry = new Registry();
+const intervalCollector = promClient.collectDefaultMetrics({prefix: 'node_worker_', });
+const processingTime = new Histogram({
+  name: 'processing_time',
+  help: 'How long it took to process the repository',
+  labelNames: ['name']
+});
+
+metricsRegistry.registerMetric(processingTime);
+
+// Queue setup
 const analyseQueue = new BullQueue('analyse', bullOpts);
 const dependentsSearchQueue: Queue = new BullQueue("dependentsSearch", bullOpts);
 const dependencySearchQueue: Queue = new BullQueue("dependencySearch", bullOpts);
@@ -47,6 +62,13 @@ const opts = [
   "-jar",
   `${process.env.JP2G_JAR}`,
 ]
+
+// Create metrics endpoint
+const server: fastify.FastifyInstance<Server, IncomingMessage, ServerResponse> = fastify({})
+server.get('/metrics', (request, reply) => {
+  reply.code(200).header('Content-Type', promClient.register.contentType).send(promClient.register.metrics())
+})
+server.listen(3000, "0.0.0.0");
 
 console.log("Worker up :)");
 setupWorker();
@@ -85,7 +107,10 @@ async function anaylse(name: string, args: string[]): Promise<ProcessingResult> 
   const endTime = performance.now();
 
   processingResult.timeTaken = endTime - startTime;
-  console.log(`Processing ${name} took ${processingResult.timeTaken} milliseconds`)
+  console.log(`Processing ${name} took ${processingResult.timeTaken} milliseconds`);
+
+  // report metric
+  processingTime.labels(name).observe(processingResult.timeTaken);
 
   // console.log('stdout:', stdout);
   // console.error('stderr:', stderr);
