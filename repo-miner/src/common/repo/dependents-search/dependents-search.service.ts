@@ -65,21 +65,22 @@ export class DependentsSearchService {
 
   // TODO: Provide then callback
   private setupRepositoryFetchQueueProcessor() {
-    // this.repositoryFetchQueue.process(async (job: Job<RepositoryFetchJob>, done) => {
-    //   const {user, repoName, searchDepth} = job.data;
-    //   console.log(`\u001b[1;36m Processing ${user}/${repoName} from queue ${this.repositoryFetchQueue.name} in DSS`);
-    //   this.repoService.getRepositoryInBackground(user, repoName, "GitHub").toPromise().then(repo => {
-    //     if (!repo.isFork && repo.stars > 0) {
-    //       this.addRepoToQueue(this.analyseQueue, repo, searchDepth);
-    //     }
-    //     done();
-    //   })
-    // })
     this.repositoryFetchQueue.process(async (job: Job<RepositoryFetchJob>, done) => {
       const {user, repoName, searchDepth} = job.data;
       console.log(`\u001b[1;36m Processing ${user}/${repoName} from queue ${this.repositoryFetchQueue.name} in DSS`);
-      this.repoService.getRepositoryInBackgroundWithCallback(user, repoName, this.afterFetchThen(done, searchDepth));
+      this.repoService.getRepositoryInBackground(user, repoName, "GitHub").toPromise().then(repo => {
+        console.log(`In sub with repo ${repo.fullName}, stars: ${repo.stars}, fork: ${repo.isFork}`)
+        if (!repo.isFork && repo.stars > 0) {
+          this.addRepoToQueue(this.analyseQueue, repo, searchDepth);
+        }
+        done();
+      })
     })
+    // this.repositoryFetchQueue.process(async (job: Job<RepositoryFetchJob>, done) => {
+    //   const {user, repoName, searchDepth} = job.data;
+    //   console.log(`\u001b[1;36m Processing ${user}/${repoName} from queue ${this.repositoryFetchQueue.name} in DSS`);
+    //   this.repoService.getRepositoryInBackgroundWithCallback(user, repoName, this.afterFetchThen(done, searchDepth));
+    // })
   }
 
   private searchCode(query: string): Observable<RepositoryFetchJob> {

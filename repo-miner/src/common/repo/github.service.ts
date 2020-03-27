@@ -1,5 +1,5 @@
 import { Injectable, HttpService, HttpStatus } from '@nestjs/common';
-import { map, expand, concatMap, delay, mergeMap, take, filter, tap, catchError, retryWhen, ignoreElements, startWith } from 'rxjs/operators';
+import { map, expand, concatMap, delay, mergeMap, take, filter, tap, catchError, retryWhen, ignoreElements, startWith, finalize } from 'rxjs/operators';
 import { Observable, empty, of, timer, BehaviorSubject, Subject, from, ReplaySubject } from 'rxjs';
 import { Repository, adapters, RepositoryFetchJob } from '@app/models';
 import { AxiosError, AxiosResponse } from 'axios';
@@ -121,36 +121,52 @@ export class GithubService {
     const resultSubject = new Subject<Repository>();
     let ids = [];
 
-    repos.subscribe(repo => {
+    repos.pipe(
+      finalize(() => resultSubject.complete()) // Complete result on source complete
+    ).subscribe(repo => {
       const request = new PendingRequest(`/repos/${repo.user}/${repo.repoName}`, RateLimitType.Core);
       const jobOptions = allowDuplicates ? {} : {jobId: `${repo.user}/${repo.repoName}`}; // overriding job ID prevents duplicates as won't be unique
       this.repositoryFetchQueue.add(request, jobOptions).then((job: Job) => {
         console.log(`\u001b[1;32m Added job ${repo.user}/${repo.repoName} to queue`);
         ids = [...ids, job.id];
+        job.finished().then((result: Repository) => {
+          resultSubject.next(result);
+          return Promise.resolve();
+        })
+        console.log("\u001b[1;32m Listeners: " + this.repositoryFetchQueue.listenerCount);
+        return Promise.resolve();
       })
     });
 
-    this.repositoryFetchQueue.on("completed", (result: Job) => {
-      if (ids.includes(result.id)) {
-        resultSubject.next(result.returnvalue);
-      }
-    })
+    console.log()
+
+    // this.repositoryFetchQueue.on("completed", (result: Job) => {
+    //   if (ids.includes(result.id)) {
+    //     resultSubject.next(result.returnvalue);
+    //   }
+    // })
     return resultSubject.asObservable();
   }
 
   // NEW
   getRepositoryInBackground(user: string, repoName: string, source: string): Observable<Repository> {
+    console.log("\u001b[1;32m Listeners: " + this.repositoryFetchQueue.listenerCount('completed'));
     const resultSubject = new Subject<Repository>();
     const request = new PendingRequest(`/repos/${user}/${repoName}`, RateLimitType.Core);
     this.repositoryFetchQueue.add(request).then((job: Job) => {
       const jobId = job.id;
 
-      this.repositoryFetchQueue.on("completed", (result: Job) => {
-        if (result.id == jobId) {
-          resultSubject.next(result.returnvalue);
-          resultSubject.complete();
-        }
+      job.finished().then((result: Repository) => {
+        resultSubject.next(result);
+        resultSubject.complete();
       })
+
+      // this.repositoryFetchQueue.on("completed", (result: Job) => {
+      //   if (result.id == jobId) {
+      //     resultSubject.next(result.returnvalue);
+      //     resultSubject.complete();
+      //   }
+      // })
     })
     // const jobId = (await this.repositoryFetchQueue.add({user: user, repo: repo})).id;
 
