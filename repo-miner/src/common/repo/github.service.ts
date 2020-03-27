@@ -133,7 +133,6 @@ export class GithubService {
           resultSubject.next(result);
           return Promise.resolve();
         })
-        console.log("\u001b[1;32m Listeners: " + this.repositoryFetchQueue.listenerCount);
         return Promise.resolve();
       })
     });
@@ -167,7 +166,7 @@ export class GithubService {
       //     resultSubject.complete();
       //   }
       // })
-    })
+    }).catch(reason => console.log("\u001b[1;31m ERROR: " + reason))
     // const jobId = (await this.repositoryFetchQueue.add({user: user, repo: repo})).id;
 
     // this.repositoryFetchQueue.on("completed", (result: Job) => {

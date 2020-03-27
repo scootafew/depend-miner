@@ -32,7 +32,8 @@ export class DependentsSearchService {
         map(item => ({user: item.repository.owner.login, repoName: item.repository.name, searchDepth: searchDepth}))
       ).subscribe(repoFetchJob => {
         console.log(`\u001b[1;36m Added ${repoFetchJob.user}/${repoFetchJob.repoName} to queue ${this.repositoryFetchQueue.name} in DSS`);
-        this.repositoryFetchQueue.add(repoFetchJob)
+        const jobOptions = {jobId: `${repoFetchJob.user}/${repoFetchJob.user}`}; // overriding job ID prevents duplicates as won't be unique
+        this.repositoryFetchQueue.add(repoFetchJob, jobOptions).catch(reason => console.log("\u001b[1;31m ERROR: " + reason));
       })
     //   this.repoService.getRepositoriesInBackground(this.searchCode(query)).pipe(
     //     // flatMap(item => this.repoService.getRepositoryInBackground(item.repository.owner.login, item.repository.name, "GitHub").pipe(
