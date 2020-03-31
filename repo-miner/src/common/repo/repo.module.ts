@@ -2,6 +2,7 @@ import { Module, HttpModule, HttpService } from '@nestjs/common';
 import { GithubService } from './github.service';
 import { DependentsSearchService } from './dependents-search/dependents-search.service';
 import * as BullQueue from 'bull';
+import { CommonModule } from '../common.module';
 
 // const gitHubServiceFactory = {
 //   provide: 'GITHUBSERVICE',
@@ -26,7 +27,7 @@ import * as BullQueue from 'bull';
 // };
 
 @Module({
-  imports: [HttpModule],
+  imports: [HttpModule, CommonModule],
   exports: [GithubService],
   providers: [GithubService, DependentsSearchService]
 })

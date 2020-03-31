@@ -4,7 +4,9 @@ import * as child_process from 'child_process';
 import * as Redis from 'ioredis';
 import * as promClient from 'prom-client';
 import * as fastify from 'fastify'
-import { Registry, Histogram } from 'prom-client';
+import * as fs from 'fs';
+import * as csvWriter from 'csv-write-stream';
+import { Registry, Histogram, Counter } from 'prom-client';
 import { performance } from 'perf_hooks';
 import { Job, Queue } from 'bull';
 import { Repository, Artifact, JobType, AnalyseJob } from '@app/models';
@@ -36,12 +38,18 @@ var bullOpts = {
 
 const metricsRegistry = new Registry();
 const intervalCollector = promClient.collectDefaultMetrics({prefix: 'node_worker_', });
+const processedJobs = new Counter({
+  name: 'jobs_processed_total',
+  help: "How many jobs have been processed by this worker",
+  labelNames: ['worker_id', "job_result"]
+})
 const processingTime = new Histogram({
   name: 'processing_time',
   help: 'How long it took to process the repository',
   labelNames: ['name']
 });
 
+metricsRegistry.registerMetric(processedJobs);
 metricsRegistry.registerMetric(processingTime);
 
 // Queue setup
@@ -53,7 +61,8 @@ interface ProcessingResult {
   exitCode: number,
   processedArtifacts: Artifact[],
   dependencies: Artifact[],
-  timeTaken?: number
+  timeTaken?: number,
+  message?: string
 }
 
 const opts = [
@@ -63,13 +72,32 @@ const opts = [
   `${process.env.JP2G_JAR}`,
 ]
 
-// Create metrics endpoint
+function appendMetricToCsv(id: string, processingTime: number, message: string) {
+  let writer = csvWriter({sendHeaders: false})
+  writer.pipe(fs.createWriteStream('metric_file.csv', {flags: 'a'}))
+  writer.write({timestamp:new Date().valueOf(), id: id, processingTime: processingTime, message: message})
+  writer.end()
+}
+
+// Create metrics endpoints
 const server: fastify.FastifyInstance<Server, IncomingMessage, ServerResponse> = fastify({})
 server.get('/metrics', (request, reply) => {
   reply.code(200).header('Content-Type', promClient.register.contentType).send(promClient.register.metrics())
 })
+
+server.get('/csvmetrics', (request, reply) => {
+  const stream = fs.createReadStream('metric_file.csv');
+  reply.code(200).send(stream)
+})
+
+server.delete('/csvmetrics', (request, reply) => {
+  fs.unlink('metric_file.csv',() => {
+    reply.send("Deleted CSV Metrics File");
+  });
+})
 server.listen(3000, "0.0.0.0");
 
+// init
 console.log("Worker up :)");
 setupWorker();
 
@@ -101,20 +129,29 @@ async function setupWorker() {
 }
 
 async function anaylse(name: string, args: string[]): Promise<ProcessingResult> {
-  const startTime = performance.now();
-  // const { stdout, stderr } = await exec(command);
-  const processingResult = await spawnProcess([...opts, ...args]);
-  const endTime = performance.now();
+  try {
+    const startTime = performance.now();
+    // const { stdout, stderr } = await exec(command);
+    const processingResult = await spawnProcess([...opts, ...args]);
+    const endTime = performance.now();
 
-  processingResult.timeTaken = endTime - startTime;
-  console.log(`Processing ${name} took ${processingResult.timeTaken} milliseconds`);
+    processingResult.timeTaken = endTime - startTime;
+    console.log(`Processing ${name} took ${processingResult.timeTaken} milliseconds`);
 
-  // report metric
-  processingTime.labels(name).observe(processingResult.timeTaken);
+    // report metric
+    processingTime.labels(name).observe(processingResult.timeTaken);
 
-  // console.log('stdout:', stdout);
-  // console.error('stderr:', stderr);
-  return processingResult;
+    appendMetricToCsv(name, processingResult.timeTaken, processingResult.message);
+
+    // console.log('stdout:', stdout);
+    // console.error('stderr:', stderr);
+    return processingResult;
+  } catch (err) {
+    appendMetricToCsv(name, 0, err.message);
+    
+    throw err;
+  }
+  
 }
 
 async function spawnProcess(args: string[]): Promise<ProcessingResult> {
@@ -124,6 +161,7 @@ async function spawnProcess(args: string[]): Promise<ProcessingResult> {
     javaProcess.stderr.pipe(process.stderr);
 
     let latestStderr = "";
+    let exitMessage = "";
 
     let artifacts: Artifact[] = [];
     let dependencies: Artifact[] = [];
@@ -149,6 +187,11 @@ async function spawnProcess(args: string[]): Promise<ProcessingResult> {
             let [groupId, artifactId, version] = dependency.split(":");
             dependencies = [...dependencies, new Artifact(groupId, artifactId, version)]
           }
+          
+          if (line.startsWith("Exit message: ")) {
+            let message = line.replace("Exit message: ", "");
+            exitMessage = message;
+          }
         })
       }
     })
@@ -161,15 +204,19 @@ async function spawnProcess(args: string[]): Promise<ProcessingResult> {
       console.log('Child process exited with code ' + code.toString());
       // reject if exited with non-zero exit code
       if (code) {
+        processedJobs.labels(process.env.HOSTNAME, "fail").inc();
         reject({
           exitCode: code,
-          message: latestStderr
+          err: latestStderr,
+          message: exitMessage
         });
       } else {
+        processedJobs.labels(process.env.HOSTNAME, "success").inc();
         resolve({
           exitCode: code,
           processedArtifacts: artifacts,
-          dependencies: dependencies
+          dependencies: dependencies,
+          message: exitMessage
         });
       }
     });

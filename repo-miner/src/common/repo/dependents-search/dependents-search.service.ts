@@ -16,7 +16,6 @@ export class DependentsSearchService {
     @InjectQueue('dependentsSearch') private readonly dependentsSearchQueue: Queue,
     private readonly repoService: GithubService
     ) {
-      console.log("Created Dependents Search Service!");
       this.setupQueueProcessor();
       this.setupRepositoryFetchQueueProcessor();
   }

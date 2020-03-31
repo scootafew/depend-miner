@@ -32,5 +32,10 @@ export class Artifact {
   toString() {
     return `${this.groupId}:${this.artifactId}:${this.version}`
   }
+
+  static fromString(artifactString: string): Artifact {
+    let [groupId, artifactId, version] = artifactString.split(":");
+    return new this(groupId, artifactId, version);
+  }
   
 }

@@ -1,5 +1,5 @@
 import { Injectable, HttpService, HttpStatus } from '@nestjs/common';
-import { map, expand, concatMap, mergeMap, take, filter, tap, catchError, retryWhen } from 'rxjs/operators';
+import { map, expand, concatMap, mergeMap, take, filter, tap, catchError, retryWhen, flatMap } from 'rxjs/operators';
 import { Observable, empty, of, timer, BehaviorSubject, Subject } from 'rxjs';
 import { Repository, adapters } from '@app/models';
 import { AxiosResponse } from 'axios';
@@ -10,6 +10,7 @@ import { PendingRequest } from './pendingRequest';
 import { genericRetryStrategy } from './http.helpers';
 import * as BullQueue from 'bull';
 import { Job } from 'bull';
+import { MetricsService } from '../metrics/metrics.service';
 
 type RateLimits = {
   [key in RateLimitType]: BehaviorSubject<GithubRateLimit>
@@ -27,8 +28,8 @@ export class GithubService {
 
   private repositoryFetchQueue = new BullQueue('githubRepositoryFetchQueue', {
     redis: REDIS_CONFIG,
-    limiter: {
-      duration: 2000, // every 5 seconds
+    limiter: { // Delay added to not hit abuse rate limit https://developer.github.com/v3/#abuse-rate-limits
+      duration: 2000, // every 2 seconds
       max: 1, // 1 jobs
       bounceBack: false
     }
@@ -50,7 +51,7 @@ export class GithubService {
     [RateLimitType.Search]: new BehaviorSubject(null)
   }
 
-  constructor(private readonly http: HttpService) {
+  constructor(private readonly http: HttpService, private readonly metricsService: MetricsService) {
     this.getResourceRateLimits();
     this.setupQueueProcessor();
   }
@@ -86,7 +87,6 @@ export class GithubService {
   }
 
   getRepositoryInBackground(user: string, repoName: string, source: string): Observable<Repository> {
-    console.log("\u001b[1;32m Listeners: " + this.repositoryFetchQueue.listenerCount('completed'));
     const resultSubject = new Subject<Repository>();
     const request = new PendingRequest(`/repos/${user}/${repoName}`, RateLimitType.Core);
 
@@ -121,8 +121,9 @@ export class GithubService {
   }
 
   private getPages<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<T> {
+    const delay = 5000; // = 5s, delay between fetching pages from GitHub API. Delay added to not hit abuse rate limit https://developer.github.com/v3/#abuse-rate-limits
     return this.getPage<T>(url, options, rateLimitType).pipe(
-      expand(({ next }) => next ? this.getPage<T>(next, options, rateLimitType) : empty()),
+      expand(({ next }) => next ? timer(delay).pipe(concatMap(() => this.getPage<T>(next, options, rateLimitType))) : empty()),
       concatMap(({ data }) => data)
     )
   }
@@ -148,9 +149,17 @@ export class GithubService {
     return this.waitForRateLimit(rateLimitType)
       .pipe(
         mergeMap(() => this.http.get<T>(url, options).pipe(
-          retryWhen(genericRetryStrategy({ excludedStatusCodes: [403, 404] }))
+          tap(() => this.incHttpRequestCount()),
+          retryWhen(genericRetryStrategy({ excludedStatusCodes: [404], endpoint: rateLimitType.toString(), retryMetric: this.metricsService.histograms.requestRetries }))
         )),
-        tap(response => this.updateRateLimit(rateLimitType, response))
+        tap(response => {
+          this.incHttpResponseCount(response.status);
+          this.updateRateLimit(rateLimitType, response);
+        }),
+        catchError((err: any) => {
+          this.incHttpResponseCount(err.response.status);
+          throw err;
+        })
       );
   }
 
@@ -189,6 +198,14 @@ export class GithubService {
       remaining: res.headers['x-ratelimit-remaining'] ? Number(res.headers['x-ratelimit-remaining']) : 0,
       reset: res.headers['x-ratelimit-reset'] ? Number(res.headers['x-ratelimit-reset']) : 0
     }
+  }
+
+  private incHttpRequestCount(): void {
+    this.metricsService.counters.httpRequest.inc({destination: "GitHub"});
+  }
+
+  private incHttpResponseCount(statusCode: number): void {
+    this.metricsService.counters.httpResponse.inc({destination: "GitHub", status_code: statusCode});
   }
 
 }

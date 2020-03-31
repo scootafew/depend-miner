@@ -54,6 +54,8 @@ services:
       - server
     links: 
       - neo4j
+    ports: 
+      - "3000"
 
   redis:
     container_name: redis
