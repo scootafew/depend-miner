@@ -1,4 +1,4 @@
-import { Controller, Post, Req, Res, Param, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Req, Res, Param, NotFoundException, Query } from '@nestjs/common';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { AnalyseService } from './analyse.service';
 
@@ -16,5 +16,16 @@ export class AnalyseController {
       throw new NotFoundException(`Could not find repository '${user}/${repoName}'`);
     }
     response.code(200).send(`Processing "${repo.fullName}"...`);
+  }
+
+  @Post('maven')
+  async postArtifactHandler(@Req() req: FastifyRequest, @Query('artifact') artifact: string, @Res() response: FastifyReply<any>) {
+    this.analyseService.processArtifact(artifact, true);
+    response.code(200).send(`Processing "${artifact}"...`);
+  }
+
+  @Post('stop')
+  async stop() {
+    this.analyseService.emptyQueue();
   }
 }

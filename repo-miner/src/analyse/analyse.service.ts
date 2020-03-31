@@ -29,6 +29,18 @@ export class AnalyseService {
     // this.getDependents(repo);
   }
 
+  async processArtifact(artifactString: string, emptyQueue?: boolean) {
+    if (emptyQueue) { this.emptyQueue() };
+    let artifact = Artifact.fromString(artifactString);
+
+    // add job to queue with lifo so this job will be processed as soon as worker is free
+    this.analyseQueue.add(JobType.Artifact, AnalyseJob.fromArtifact(artifact, 0), {lifo: true})
+      .then(() => console.log(`Added artifact: ${artifact.toString()} to queue ${this.analyseQueue.name}`))
+      .catch(err => console.log(err));
+
+    this.getDependentsForArtifact(artifact);
+  }
+
   private async addToQueue(queue: Queue, repo: Repository, lifo: boolean = false) {
     queue.add(JobType.Repository, {repo: repo}, {lifo: lifo})
       .then(() => console.log(`Added repo: ${repo.fullName} to queue ${queue.name}`))
@@ -50,12 +62,17 @@ export class AnalyseService {
   async getDependencies(repo: Repository) {
     console.log(`Getting dependencies for ${repo.fullName}`);
     this.addToQueue(this.dependencySearchQueue, repo);
-
   }
 
-  async getDependents(repo: Repository) {
+  async getDependentsForRepo(repo: Repository) {
     this.dependentsSearchQueue.add(JobType.Artifact, {artifact: repo.latestArtifact, searchDepth: 0})
       .then(() => console.log(`Added repo: ${repo.fullName} to queue ${this.dependentsSearchQueue.name}`))
+      .catch(err => console.log(err));
+  }
+
+  async getDependentsForArtifact(artifact: Artifact) {
+    this.dependentsSearchQueue.add(JobType.Artifact, {artifact: artifact, searchDepth: 0})
+      .then(() => console.log(`Added artifact: ${artifact.toString()} to queue ${this.dependentsSearchQueue.name}`))
       .catch(err => console.log(err));
   }
 
