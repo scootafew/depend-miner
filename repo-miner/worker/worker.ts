@@ -12,8 +12,11 @@ import { Job, Queue } from 'bull';
 import { Repository, Artifact, JobType, AnalyseJob } from '@app/models';
 import { Readable } from 'stream';
 import { Server, IncomingMessage, ServerResponse } from 'http'
+import {ChildProcessWithoutNullStreams } from 'child_process';
 
 // https://github.com/OptimalBits/bull/blob/master/PATTERNS.md
+
+type OutputHandler = ((output: string) => void);
 
 const exec = util.promisify(child_process.exec);
 const REDIS_CONFIG = {
@@ -59,8 +62,8 @@ const dependencySearchQueue: Queue = new BullQueue("dependencySearch", bullOpts)
 
 interface ProcessingResult {
   exitCode: number,
-  processedArtifacts: Artifact[],
-  dependencies: Artifact[],
+  processedArtifacts?: Artifact[],
+  dependencies?: Artifact[],
   timeTaken?: number,
   message?: string
 }
@@ -113,12 +116,17 @@ async function setupWorker() {
     console.log(`\u001b[1;34m Job Type: ${type}`);
 
     try {
-      const processingResult = await anaylse(name, args);
+      const outputHandlers: OutputHandler[] = [
+        foundArtifactHandler(type, searchDepth),
+        foundDependencyHandler(searchDepth)
+      ];
 
-      console.log(`Search depth: ${searchDepth}/${process.env.MAX_SEARCH_DEPTH}`);
-      if (searchDepth < +process.env.MAX_SEARCH_DEPTH) {
-        handleProcessingResult(type, processingResult, searchDepth);
-      }
+      const processingResult = await anaylse(name, args, outputHandlers);
+
+      // console.log(`Search depth: ${searchDepth}/${process.env.MAX_SEARCH_DEPTH}`);
+      // if (searchDepth < +process.env.MAX_SEARCH_DEPTH) {
+      //   handleProcessingResult(type, processingResult, searchDepth);
+      // }
       
       done(null, processingResult);
     } catch (err) {
@@ -128,11 +136,11 @@ async function setupWorker() {
   })
 }
 
-async function anaylse(name: string, args: string[]): Promise<ProcessingResult> {
+async function anaylse(name: string, args: string[], outputHandlers: OutputHandler[]): Promise<ProcessingResult> {
   try {
     const startTime = performance.now();
     // const { stdout, stderr } = await exec(command);
-    const processingResult = await spawnProcess([...opts, ...args]);
+    const processingResult = await spawnProcess([...opts, ...args], outputHandlers);
     const endTime = performance.now();
 
     processingResult.timeTaken = endTime - startTime;
@@ -151,129 +159,112 @@ async function anaylse(name: string, args: string[]): Promise<ProcessingResult> 
     
     throw err;
   }
-  
 }
 
-async function spawnProcess(args: string[]): Promise<ProcessingResult> {
-  return new Promise(function (resolve, reject) {
+async function spawnProcess(args: string[], outputHandlers: ((output: string) => void)[]): Promise<ProcessingResult> {
     let javaProcess = child_process.spawn("java", args);
-    javaProcess.stdout.pipe(process.stdout);
-    javaProcess.stderr.pipe(process.stderr);
+    let stdOut = handleStdout(javaProcess.stdout, outputHandlers);
 
-    let latestStderr = "";
-    let exitMessage = "";
+    return handleProcessExit(javaProcess, stdOut);
+};
 
-    let artifacts: Artifact[] = [];
-    let dependencies: Artifact[] = [];
-
-    javaProcess.stdout.on("data", (data: Buffer) => {
-       // Line could be single linefeed char, if so ignore
+async function handleStdout(stdout: Readable, outputHandlers: OutputHandler[]): Promise<string> {
+  stdout.pipe(process.stdout);
+  
+  return new Promise(async function (resolve) {
+    stdout.on("data", (data: Buffer) => {
+      // Line could be single linefeed char, if so ignore
       if (data.length > 1) {
         let stdout = data.toString('utf8').split(/[\r\n]+/g);
-
+  
         stdout.forEach(line => {
-          // Add artifact
-          if (line.startsWith("Found maven artifact: ")) {
-            console.log("Storing artifact");
-            let artifact = line.replace("Found maven dependency: ", "");
-            let [groupId, artifactId, version] = artifact.split(":");
-            artifacts = [...artifacts, new Artifact(groupId, artifactId, version)]
-          }
-
-          // Add dependency
-          if (line.startsWith("Found maven dependency: ")) {
-            console.log("Storing dependency");
-            let dependency = line.replace("Found maven dependency: ", "")
-            let [groupId, artifactId, version] = dependency.split(":");
-            dependencies = [...dependencies, new Artifact(groupId, artifactId, version)]
-          }
-          
+          outputHandlers.forEach((handler) => handler(line));
+  
           if (line.startsWith("Exit message: ")) {
             let message = line.replace("Exit message: ", "");
-            exitMessage = message;
+            resolve(message);
           }
         })
       }
     })
-
-    javaProcess.stderr.on("data", (data: Buffer) => {
-      latestStderr = data.length > 1 ? data.toString('utf8') : latestStderr; // Final line could be single linefeed char, if so ignore
-    })
-
-    javaProcess.on('exit', function (code) {
-      console.log('Child process exited with code ' + code.toString());
-      // reject if exited with non-zero exit code
-      if (code) {
-        processedJobs.labels(process.env.HOSTNAME, "fail").inc();
-        reject({
-          exitCode: code,
-          err: latestStderr,
-          message: exitMessage
-        });
-      } else {
-        processedJobs.labels(process.env.HOSTNAME, "success").inc();
-        resolve({
-          exitCode: code,
-          processedArtifacts: artifacts,
-          dependencies: dependencies,
-          message: exitMessage
-        });
-      }
-    });
   })
-};
-
-async function handleStdout(stdout: Readable) {
-  stdout.pipe(process.stdout);
-
-  let artifacts: Artifact[] = [];
-  let dependencies: Artifact[] = [];
-
-  stdout.on("data", (data: Buffer) => {
-    // Line could be single linefeed char, if so ignore
-   if (data.length > 1) {
-     let lines = data.toString('utf8').split(/[\r\n]+/g);
-
-     lines.forEach(line => {
-       // Add artifact
-       if (line.startsWith("Found maven artifact: ")) {
-         console.log("Storing artifact");
-         let artifact = line.replace("Found maven dependency: ", "");
-         let [groupId, artifactId, version] = artifact.split(":");
-         artifacts = [...artifacts, new Artifact(groupId, artifactId, version)]
-       }
-
-       // Add dependency
-       if (line.startsWith("Found maven dependency: ")) {
-         console.log("Storing dependency");
-         let dependency = line.replace("Found maven dependency: ", "")
-         let [groupId, artifactId, version] = dependency.split(":");
-         dependencies = [...dependencies, new Artifact(groupId, artifactId, version)]
-       }
-     })
-   }
- })
- return { artifacts: artifacts, dependencies: dependencies };
 }
 
-async function handleProcessingResult(jobType: JobType, result: ProcessingResult, prevSearchDepth: number) {
-  // Queue dependents processing
+async function handleProcessExit(childProcess: ChildProcessWithoutNullStreams, exitMessage$: Promise<string>): Promise<ProcessingResult> {
+  return new Promise(async function (resolve, reject) {
+      childProcess.on("exit", async code => {
+        console.log('Child process exited with code ' + code.toString())
+
+        let exitMessage = await exitMessage$;
+
+        console.log("New Exit Message: " + exitMessage);
+
+        // reject if exited with non-zero exit code
+        if (code) {
+          processedJobs.labels(process.env.HOSTNAME, "fail").inc();
+          reject({
+            exitCode: code,
+            message: exitMessage
+          });
+        } else {
+          processedJobs.labels(process.env.HOSTNAME, "success").inc();
+          resolve({
+            exitCode: code,
+            // processedArtifacts: artifacts,
+            // dependencies: dependencies,
+            message: exitMessage
+          });
+        }
+      })
+  })
+}
+
+const foundArtifactHandler = (jobType: JobType, prevSearchDepth: number) => (line: String) => {
   // Only if repository job as otherwise dependents search will already have been performed for artifact
-  if (jobType == JobType.Repository) {
-    result.processedArtifacts.map(artifact => {
-      dependentsSearchQueue.add(JobType.Artifact, {artifact: artifact, searchDepth: prevSearchDepth})
-      .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${dependentsSearchQueue.name}`))
-      .catch(err => console.log(err));
-    })
-  }
+  if (line.startsWith("Found maven artifact: ") && (jobType == JobType.Repository) && (prevSearchDepth < +process.env.MAX_SEARCH_DEPTH)) {
+    let artifactString = line.replace("/^(Found maven dependency: )/", "");
+    console.log("Artifact string now is: " + artifactString);
+    let artifact = Artifact.fromString(artifactString);
 
-  // Queue dependency processing
-  result.dependencies.map(artifact => {
-    analyseQueue.add(JobType.Artifact, AnalyseJob.fromArtifact(artifact, prevSearchDepth + 1))
-    .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${dependencySearchQueue.name}`))
+    // Queue dependents processing
+    dependentsSearchQueue.add(JobType.Artifact, {artifact: artifact, searchDepth: prevSearchDepth})
+    .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${dependentsSearchQueue.name}`))
     .catch(err => console.log(err));
-  })
+  }
 }
+
+
+const foundDependencyHandler = (prevSearchDepth: number) => (line: String) => {
+  console.log("\u001b[1;36m Line is: ", line)
+  if (line.startsWith("Found maven dependency: ") && (prevSearchDepth < +process.env.MAX_SEARCH_DEPTH)) {
+    let dependencyString = line.replace("/^(Found maven dependency: )/", "");
+    let dependency = Artifact.fromString(dependencyString);
+
+    // Queue dependency processing
+    analyseQueue.add(JobType.Artifact, AnalyseJob.fromArtifact(dependency, prevSearchDepth + 1))
+    .then(() => console.log(`\u001b[1;36m Added dependency: ${dependency.toString()} to queue ${analyseQueue.name}`))
+    .catch(err => console.log(err));
+  }
+}
+
+// async function handleProcessingResult(jobType: JobType, result: ProcessingResult, prevSearchDepth: number) {
+//   // Queue dependents processing
+//   // Only if repository job as otherwise dependents search will already have been performed for artifact
+//   if (jobType == JobType.Repository) {
+//     result.processedArtifacts.map(artifact => {
+//       dependentsSearchQueue.add(JobType.Artifact, {artifact: artifact, searchDepth: prevSearchDepth})
+//       .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${dependentsSearchQueue.name}`))
+//       .catch(err => console.log(err));
+//     })
+//   }
+
+//   // Queue dependency processing
+//   result.dependencies.map(artifact => {
+//     analyseQueue.add(JobType.Artifact, AnalyseJob.fromArtifact(artifact, prevSearchDepth + 1))
+//     .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${dependencySearchQueue.name}`))
+//     .catch(err => console.log(err));
+//   })
+// }
 
 // async function handleArtifactProcessingResult(artifact: Artifact, result: ProcessingResult) {
 //   // Queue dependents processing
