@@ -10,6 +10,7 @@ WORKDIR /usr/src/app
 
 COPY package*.json ./
 COPY tsconfig*.json ./
+COPY ./libs ./libs
 COPY ./src ./src
 RUN npm ci --quiet && npm run build
 
@@ -18,7 +19,7 @@ RUN npm ci --quiet && npm run build
 # This state compile get back the JavaScript code from development stage
 # It will also install the production package only
 #
-FROM node:12.13.0-slim
+FROM node:12.13.0-slim AS production
 
 WORKDIR /app
 ENV NODE_ENV=production
@@ -29,4 +30,4 @@ RUN npm ci --quiet --only=production
 ## We just need the build to execute the command
 COPY --from=development /usr/src/app/dist ./dist
 
-# CMD ["node", "dist/server.js"]
+CMD ["node", "-r", "tsconfig-paths/register", "dist/server.js"]

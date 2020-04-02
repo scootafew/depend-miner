@@ -3,7 +3,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue, Job } from 'bull';
 import { ArtifactJob, Repository, JobType, Artifact, AnalyseJob, RepositoryFetchJob } from '@app/models';
 import { GithubService } from '../github.service';
-import { map } from 'rxjs/operators';
+import { map, finalize } from 'rxjs/operators';
 import { Observable } from 'rxjs';
 import { DoneCallback } from 'bull';
 
@@ -23,11 +23,12 @@ export class DependentsSearchService {
   private setupQueueProcessor() {
     this.dependentsSearchQueue.process(JobType.Artifact, async (job: Job<ArtifactJob>, done) => {
       const { artifact, searchDepth } = job.data;
-      console.log("Getting dependents for artifact:", artifact);
+      console.log("\u001b[1;31m Getting dependents for artifact:", artifact);
 
       let query = this.buildQueryString(artifact);
       this.repoService.searchCode(query).pipe(
-        map(item => ({user: item.repository.owner.login, repoName: item.repository.name, searchDepth: searchDepth}))
+        map(item => ({user: item.repository.owner.login, repoName: item.repository.name, searchDepth: searchDepth})),
+        // finalize(() => done())
       ).subscribe(repoFetchJob => {
         console.log(`\u001b[1;36m Added ${repoFetchJob.user}/${repoFetchJob.repoName} to queue ${this.repositoryFetchQueue.name} in DSS`);
         const jobOptions = {jobId: `${repoFetchJob.user}/${repoFetchJob.user}`}; // overriding job ID prevents duplicates as won't be unique

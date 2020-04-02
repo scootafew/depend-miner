@@ -223,7 +223,6 @@ const foundArtifactHandler = (jobType: JobType, prevSearchDepth: number) => (lin
   // Only if repository job as otherwise dependents search will already have been performed for artifact
   if (line.startsWith("Found maven artifact: ") && (jobType == JobType.Repository) && (prevSearchDepth < +process.env.MAX_SEARCH_DEPTH)) {
     let artifactString = line.replace("/^(Found maven dependency: )/", "");
-    console.log("Artifact string now is: " + artifactString);
     let artifact = Artifact.fromString(artifactString);
 
     // Queue dependents processing
@@ -235,7 +234,6 @@ const foundArtifactHandler = (jobType: JobType, prevSearchDepth: number) => (lin
 
 
 const foundDependencyHandler = (prevSearchDepth: number) => (line: String) => {
-  console.log("\u001b[1;36m Line is: ", line)
   if (line.startsWith("Found maven dependency: ") && (prevSearchDepth < +process.env.MAX_SEARCH_DEPTH)) {
     let dependencyString = line.replace("/^(Found maven dependency: )/", "");
     let dependency = Artifact.fromString(dependencyString);
