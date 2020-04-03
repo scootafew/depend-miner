@@ -105,9 +105,6 @@ console.log("Worker up :)");
 setupWorker();
 
 async function setupWorker() {
-  await analyseQueue.empty(); // reset for debugging purposes
-  console.log("Emptied queue");
-
   analyseQueue.process('*', async (job: Job<AnalyseJob>, done) => {
     console.log(job.data);
 
@@ -163,6 +160,7 @@ async function anaylse(name: string, args: string[], outputHandlers: OutputHandl
 
 async function spawnProcess(args: string[], outputHandlers: ((output: string) => void)[]): Promise<ProcessingResult> {
     let javaProcess = child_process.spawn("java", args);
+    javaProcess.stderr.pipe(process.stderr);
     let stdOut = handleStdout(javaProcess.stdout, outputHandlers);
 
     return handleProcessExit(javaProcess, stdOut);

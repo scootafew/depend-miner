@@ -1,5 +1,5 @@
 import { Injectable, HttpService, HttpStatus } from '@nestjs/common';
-import { map, expand, concatMap, mergeMap, take, filter, tap, catchError, retryWhen, flatMap } from 'rxjs/operators';
+import { map, expand, concatMap, mergeMap, take, filter, tap, catchError, retryWhen } from 'rxjs/operators';
 import { Observable, empty, of, timer, BehaviorSubject, Subject } from 'rxjs';
 import { Repository, adapters } from '@app/models';
 import { AxiosResponse } from 'axios';
@@ -44,7 +44,7 @@ export class GithubService {
     }
   }
 
-  backgroundRequestQueue$: Subject<PendingRequest> = new Subject();  // Could potentially replace with another Bull queue
+  // backgroundRequestQueue$: Subject<PendingRequest> = new Subject();  // Could potentially replace with another Bull queue
 
   rateLimits: RateLimits = {
     [RateLimitType.Core]: new BehaviorSubject(null),
@@ -66,7 +66,6 @@ export class GithubService {
 
   private setupQueueProcessor(): void {
     this.repositoryFetchQueue.process(async (job: Job) => {
-      console.log(`\u001b[1;31m Processing ${job.data.url} from queue`);
       const repo = await this.execute(job.data).toPromise();
       return Promise.resolve(repo);
     })
@@ -106,7 +105,7 @@ export class GithubService {
   }
 
   private execute(request: PendingRequest): Observable<Repository> {
-    console.log(`Getting url ${request.url}`)
+    console.log(`\u001b[1;31m GitHub Service: Getting url ${request.url}`);
     return this.get<any>(request.url, this.options, request.rateLimitType).pipe(
       map(res => adapters.get("GitHubRepository").adapt(res.data)),
       catchError((err: any) => {
@@ -121,6 +120,7 @@ export class GithubService {
   }
 
   private getPages<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<T> {
+    console.log("\u001b[1;31m Starting to get pages! Url:", url);
     const delay = 5000; // = 5s, delay between fetching pages from GitHub API. Delay added to not hit abuse rate limit https://developer.github.com/v3/#abuse-rate-limits
     return this.getPage<T>(url, options, rateLimitType).pipe(
       expand(({ next }) => next ? timer(delay).pipe(concatMap(() => this.getPage<T>(next, options, rateLimitType))) : empty()),
@@ -129,12 +129,13 @@ export class GithubService {
   }
 
   private getPage<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<{ data: T[], next: string }> {
+    console.log("\u001b[1;31m Getting next page! Url:", url);
     return this.get<GitHubSearchResult<T>>(url, options, rateLimitType)
       .pipe(
         map(res => {
-          const rateLimit = this.parseRateLimit(res);
-          console.log(`Rate Limit Remaining: ${rateLimit.remaining}`);
-          console.log(`Rate Limit Reset: ${rateLimit.reset}`);
+          // const rateLimit = this.parseRateLimit(res);
+          // console.log(`Rate Limit Remaining: ${rateLimit.remaining}`);
+          // console.log(`Rate Limit Reset: ${rateLimit.reset}`);
           const nextUrl = res!.headers['link'] ? parseLinkHeader(res.headers['link']).next?.url : null;
 
           return {
@@ -170,11 +171,11 @@ export class GithubService {
           const secondsDelay = 5;
           const resetDate = new Date((rateLimit.reset * 1000) + secondsDelay);
     
-          console.log("Waiting until: ", resetDate)
+          console.log(`(${rateLimitType}) Hit rate limit, waiting until: ${resetDate}`)
     
           return timer(resetDate); // TODO fix requests piling up waiting to all be released at the same time (if waiting should be timer at queue level)
         } else {
-          console.log(`Actual rate limit remaining: ${rateLimit.remaining}`)
+          console.log(`(${rateLimitType}) Rate limit remaining: ${rateLimit.remaining}`)
           return of(null);
         }
       }));

@@ -8,10 +8,15 @@ export class AnalyseController {
   constructor(private readonly analyseService: AnalyseService ) {}
 
   @Post('github/:user/:repo')
-  async postQueueHandler(@Req() req: FastifyRequest, @Param('user') user: string, @Param('repo') repoName: string, @Res() response: FastifyReply<any>) {
+  async postQueueHandler(
+    @Req() req: FastifyRequest,
+    @Param('user') user: string,
+    @Param('repo') repoName: string,
+    @Query('resetQueus') resetQueues: boolean,
+    @Res() response: FastifyReply<any>) {
     let repo = await this.analyseService.getRepository(user, repoName);
     if (repo) {
-      this.analyseService.processRepository(repo, true);
+      this.analyseService.processRepository(repo, resetQueues);
     } else {
       throw new NotFoundException(`Could not find repository '${user}/${repoName}'`);
     }
@@ -19,13 +24,17 @@ export class AnalyseController {
   }
 
   @Post('maven')
-  async postArtifactHandler(@Req() req: FastifyRequest, @Query('artifact') artifact: string, @Res() response: FastifyReply<any>) {
-    this.analyseService.processArtifact(artifact, true);
+  async postArtifactHandler(
+    @Req() req: FastifyRequest,
+    @Query('artifact') artifact: string,
+    @Query('resetQueus') resetQueues: boolean,
+    @Res() response: FastifyReply<any>) {
+    this.analyseService.processArtifact(artifact, resetQueues);
     response.code(200).send(`Processing "${artifact}"...`);
   }
 
   @Post('stop')
   async stop() {
-    this.analyseService.emptyQueue();
+    this.analyseService.emptyQueues();
   }
 }

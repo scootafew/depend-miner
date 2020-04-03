@@ -9,6 +9,13 @@ https://stackoverflow.com/questions/39663096/docker-compose-creating-multiple-in
 
 ### Production
 
-`docker-compose -f docker-compose.production.yml build`
+`docker-compose -f docker-compose.production.yml build <optional-service-name>`
 
 `docker-compose -f docker-compose.production.yml up`
+
+
+## Inspect Container
+`docker container exec -it repo-miner_worker_1 /bin/sh`
+
+## Inspect Image
+`docker run -it repo-miner_worker /bin/sh`

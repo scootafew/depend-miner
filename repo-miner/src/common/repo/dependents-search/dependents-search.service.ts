@@ -3,7 +3,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue, Job } from 'bull';
 import { ArtifactJob, Repository, JobType, Artifact, AnalyseJob, RepositoryFetchJob } from '@app/models';
 import { GithubService } from '../github.service';
-import { map, finalize } from 'rxjs/operators';
+import { map, finalize, count } from 'rxjs/operators';
 import { Observable } from 'rxjs';
 import { DoneCallback } from 'bull';
 
@@ -28,25 +28,26 @@ export class DependentsSearchService {
       let query = this.buildQueryString(artifact);
       this.repoService.searchCode(query).pipe(
         map(item => ({user: item.repository.owner.login, repoName: item.repository.name, searchDepth: searchDepth})),
-        // finalize(() => done())
-      ).subscribe(repoFetchJob => {
-        console.log(`\u001b[1;36m Added ${repoFetchJob.user}/${repoFetchJob.repoName} to queue ${this.repositoryFetchQueue.name} in DSS`);
-        const jobOptions = {jobId: `${repoFetchJob.user}/${repoFetchJob.user}`}; // overriding job ID prevents duplicates as won't be unique
-        
-        this.repositoryFetchQueue.add(repoFetchJob, jobOptions).catch(reason => console.log("\u001b[1;31m ERROR: " + reason));
+        map(repoFetchJob => {
+          const jobOptions = {jobId: `${repoFetchJob.user}/${repoFetchJob.user}`}; // overriding job ID prevents duplicates as won't be unique
+          this.repositoryFetchQueue.add(repoFetchJob, jobOptions).catch(reason => console.log("\u001b[1;31m ERROR: " + reason));
+        }),
+        count()
+      ).subscribe(count => {
+        console.log(`\u001b[1;36m Added ${count} items to queue ${this.repositoryFetchQueue.name} in DSS`);
+        done(null, count);
       })
 
-      done();
+      // done();
     });
   }
 
   private setupRepositoryFetchQueueProcessor() {
     this.repositoryFetchQueue.process(async (job: Job<RepositoryFetchJob>, done) => {
       const {user, repoName, searchDepth} = job.data;
-      console.log(`\u001b[1;36m Processing ${user}/${repoName} from queue ${this.repositoryFetchQueue.name} in DSS`);
       this.repoService.getRepositoryInBackground(user, repoName, "GitHub").toPromise().then(repo => {
-        console.log(`In sub with repo ${repo.fullName}, stars: ${repo.stars}, fork: ${repo.isFork}`)
-        if (!repo.isFork && repo.stars > 0) {
+        if (!repo.isFork && repo.stars > 1) {
+          console.log(`Repo ${repo.fullName}, stars: ${repo.stars}, fork: ${repo.isFork}`)
           this.addRepoToQueue(this.analyseQueue, repo, searchDepth);
         }
         done();

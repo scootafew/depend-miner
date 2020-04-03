@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Queue } from 'bull';
+import { Queue, Job } from 'bull';
 import { InjectQueue } from '@nestjs/bull';
 import { Repository, Artifact, JobType, ArtifactJob, AnalyseJob } from '@app/models';
 import { GithubService } from 'src/common/repo/github.service';
@@ -16,7 +16,7 @@ export class AnalyseService {
     ) { }
 
   async processRepository(repo: Repository, emptyQueue?: boolean) {
-    if (emptyQueue) { this.emptyQueue() };
+    if (emptyQueue) { this.emptyQueues() };
     console.log(`Processing repository ${repo.fullName}`);
 
     // add job to queue with lifo so this job will be processed as soon as worker is free
@@ -30,7 +30,7 @@ export class AnalyseService {
   }
 
   async processArtifact(artifactString: string, emptyQueue?: boolean) {
-    if (emptyQueue) { this.emptyQueue() };
+    if (emptyQueue) { this.emptyQueues() };
     let artifact = Artifact.fromString(artifactString);
 
     // add job to queue with lifo so this job will be processed as soon as worker is free
@@ -76,10 +76,14 @@ export class AnalyseService {
       .catch(err => console.log(err));
   }
 
-  emptyQueue() {
-    this.analyseQueue.empty();
-    this.repositoryFetchQueue.empty();
-    this.dependencySearchQueue.empty();
-    this.dependentsSearchQueue.empty();
+  async emptyQueues() {
+    await this.analyseQueue.empty();
+    this.analyseQueue.getActive().then((jobs: Job[]) => jobs.forEach(job => job.remove()));
+    await this.repositoryFetchQueue.empty();
+    this.repositoryFetchQueue.getActive().then((jobs: Job[]) => jobs.forEach(job => job.remove()));
+    await this.dependencySearchQueue.empty();
+    this.dependencySearchQueue.getActive().then((jobs: Job[]) => jobs.forEach(job => job.remove()));
+    await this.dependentsSearchQueue.empty();
+    this.dependentsSearchQueue.getActive().then((jobs: Job[]) => jobs.forEach(job => job.remove()));
   }
 }
