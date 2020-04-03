@@ -29,9 +29,10 @@ COPY tsconfig*.json ./
 COPY nodemon*.json ./
 RUN npm ci --quiet
 
-COPY ./worker/worker.ts ./worker.ts
+COPY ./worker/ ./worker/
 COPY ./libs/models/ ./libs/models/
-RUN npm run pure:compile
+# RUN npm run pure:compile
+RUN npm run build
 
 COPY --from=jp2g:latest /home/app/jp2g jp2g
 
@@ -47,11 +48,13 @@ WORKDIR /home/app
 ENV NODE_ENV=production
 
 COPY package*.json ./
+COPY tsconfig*.json ./
 RUN npm ci --quiet --only=production
 
-## We just need the build to execute the command
-COPY --from=development /home/app/dist/worker.js ./
-COPY --from=development /home/app/dist/libs ./libs
-COPY ./jp2g ./jp2g
+# COPY tsconfig-paths-bootstrap.js ./
 
-CMD ["node", "-r", "tsconfig-paths/register", "home/app/worker.js"]
+## We just need the build to execute the command
+COPY --from=development /home/app/dist ./dist
+COPY --from=jp2g:latest /home/app/jp2g ./jp2g
+
+CMD ["npm", "run", "worker:start:prod"]

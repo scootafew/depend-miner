@@ -25,9 +25,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package*.json ./
+COPY tsconfig*.json ./
 RUN npm ci --quiet --only=production
 
 ## We just need the build to execute the command
 COPY --from=development /usr/src/app/dist ./dist
 
-CMD ["node", "-r", "tsconfig-paths/register", "dist/server.js"]
+CMD ["npm", "run", "start:prod"]
