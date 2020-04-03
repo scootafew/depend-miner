@@ -10,9 +10,13 @@ WORKDIR /usr/src/app
 
 COPY package*.json ./
 COPY tsconfig*.json ./
+RUN npm ci --quiet
+
 COPY ./libs ./libs
 COPY ./src ./src
-RUN npm ci --quiet && npm run build
+RUN npm run build
+
+CMD ["npm", "run", "start:dev"]
 
 #
 # Production stage.
