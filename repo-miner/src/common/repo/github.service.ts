@@ -105,12 +105,12 @@ export class GithubService {
   }
 
   private execute(request: PendingRequest): Observable<Repository> {
-    console.log(`\u001b[1;31m GitHub Service: Getting url ${request.url}`);
+    console.log(`\u001b[1;32m GitHub Service: Getting url ${request.url}`);
     return this.get<any>(request.url, this.options, request.rateLimitType).pipe(
       map(res => adapters.get("GitHubRepository").adapt(res.data)),
       catchError((err: any) => {
         if (err.response?.status == HttpStatus.NOT_FOUND) {
-          console.log(`Repository at ${request.url} not found!`);
+          console.log(`\u001b[1;31m GitHub Service: Repository at ${request.url} not found!`);
           return empty();
         } else {
           throw err;
@@ -120,7 +120,7 @@ export class GithubService {
   }
 
   private getPages<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<T> {
-    console.log("\u001b[1;31m Starting to get pages! Url:", url);
+    console.log("\u001b[1;32m GitHub Service: Starting to get pages! Url:", url);
     const delay = 5000; // = 5s, delay between fetching pages from GitHub API. Delay added to not hit abuse rate limit https://developer.github.com/v3/#abuse-rate-limits
     return this.getPage<T>(url, options, rateLimitType).pipe(
       expand(({ next }) => next ? timer(delay).pipe(concatMap(() => this.getPage<T>(next, options, rateLimitType))) : empty()),
@@ -129,13 +129,10 @@ export class GithubService {
   }
 
   private getPage<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<{ data: T[], next: string }> {
-    console.log("\u001b[1;31m Getting next page! Url:", url);
+    console.log("\u001b[1;32m GitHub Service: Getting next page! Url:", url);
     return this.get<GitHubSearchResult<T>>(url, options, rateLimitType)
       .pipe(
         map(res => {
-          // const rateLimit = this.parseRateLimit(res);
-          // console.log(`Rate Limit Remaining: ${rateLimit.remaining}`);
-          // console.log(`Rate Limit Reset: ${rateLimit.reset}`);
           const nextUrl = res!.headers['link'] ? parseLinkHeader(res.headers['link']).next?.url : null;
 
           return {
