@@ -36,7 +36,7 @@ RUN npm run build
 
 COPY --from=jp2g:latest /home/app/jp2g jp2g
 
-CMD ["npm", "run", "start:dev"]
+CMD ["npm", "run", "pure:start-dev"]
 
 
 #

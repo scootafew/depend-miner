@@ -7,12 +7,12 @@ volumes:
   grafana_data: {}
 
 services:
-  server:
+  manager:
     build:
       context: .
       target: production
-    hostname: server
-    container_name: server
+    hostname: manager
+    container_name: manager
     depends_on:
       - redis
     environment:
@@ -47,7 +47,7 @@ services:
     depends_on: 
       - redis
       - neo4j
-      - server
+      - manager
     links: 
       - neo4j
     ports: 
@@ -83,7 +83,7 @@ services:
   #   container_name: bull-board
   #   depends_on: 
   #     - redis
-  #     - server
+  #     - manager
   #   environment:
   #     - REDIS_HOST=redis://redis
   #     - PORT=3020
@@ -95,7 +95,7 @@ services:
     container_name: bull-board
     depends_on: 
       - redis
-      - server
+      - manager
     environment:
       - REDIS_HOST=redis
       - REDIS_PASSWORD=''

@@ -15,7 +15,7 @@ https://stackoverflow.com/questions/39663096/docker-compose-creating-multiple-in
 
 
 ## Inspect Container
-`docker container exec -it repo-miner_worker_1 /bin/sh`
+`docker container exec -it depend-miner_worker_1 /bin/sh`
 
 ## Inspect Image
-`docker run -it repo-miner_worker /bin/sh`
+`docker run -it depend-miner_worker /bin/sh`
