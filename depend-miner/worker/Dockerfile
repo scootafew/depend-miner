@@ -31,10 +31,9 @@ RUN npm ci --quiet
 
 COPY ./worker/ ./worker/
 COPY ./libs/models/ ./libs/models/
-# RUN npm run pure:compile
 RUN npm run build
 
-COPY --from=jp2g:latest /home/app/jp2g jp2g
+COPY --from=scootafew/jp2g:latest /home/app/jp2g jp2g
 
 CMD ["npm", "run", "pure:start-dev"]
 
@@ -53,10 +52,8 @@ COPY package*.json ./
 COPY tsconfig*.json ./
 RUN npm ci --quiet --only=production
 
-# COPY tsconfig-paths-bootstrap.js ./
-
 ## We just need the build to execute the command
 COPY --from=development /home/app/dist ./dist
-COPY --from=jp2g:latest /home/app/jp2g ./jp2g
+COPY --from=scootafew/jp2g:latest /home/app/jp2g ./jp2g
 
 CMD ["npm", "run", "worker:start:prod"]
