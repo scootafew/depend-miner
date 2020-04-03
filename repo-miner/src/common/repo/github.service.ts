@@ -21,6 +21,9 @@ const REDIS_CONFIG = {
   port: Number(process.env.REDIS_PORT) || 6379,
 }
 
+const RED_LOG_COLOUR = "\u001b[1;31m";
+const GREEN_LOG_COLOUR = "\u001b[1;32m";
+
 // Credit https://stackoverflow.com/questions/48021728/add-queueing-to-angulars-httpclient
 // Credit https://github.com/andrewseguin/dashboard/blob/d1bf6e1d87ec2fd1bf38417757576c30514b0145/src/app/service/github.ts
 @Injectable()
@@ -75,7 +78,7 @@ export class GithubService {
     const request = new PendingRequest(`/repos/${user}/${repoName}`, RateLimitType.Core);
     let resSubject = new Subject<Repository>();
     this.repositoryFetchQueue.add(request, {lifo: true}).then((job: Job) => {
-      console.log(`\u001b[1;32m Added job ${user}/${repoName} to queue ${this.repositoryFetchQueue.name} in GHS`);
+      console.log(`${GREEN_LOG_COLOUR} Added job ${user}/${repoName} to queue ${this.repositoryFetchQueue.name} in GHS`);
       job.finished().then(res => {
         resSubject.next(res);
         resSubject.complete();
@@ -94,7 +97,7 @@ export class GithubService {
         resultSubject.next(result);
         resultSubject.complete();
       })
-    }).catch(reason => console.log("\u001b[1;31m ERROR: " + reason));
+    }).catch(reason => console.log(`${RED_LOG_COLOUR} ERROR: ${reason}`));
 
     return resultSubject.asObservable();
   }
@@ -110,7 +113,7 @@ export class GithubService {
       map(res => adapters.get("GitHubRepository").adapt(res.data)),
       catchError((err: any) => {
         if (err.response?.status == HttpStatus.NOT_FOUND) {
-          console.log(`\u001b[1;31m GitHub Service: Repository at ${request.url} not found!`);
+          console.log(`${RED_LOG_COLOUR} GitHub Service: Repository at ${request.url} not found!`);
           return empty();
         } else {
           throw err;
@@ -120,7 +123,7 @@ export class GithubService {
   }
 
   private getPages<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<T> {
-    console.log("\u001b[1;32m GitHub Service: Starting to get pages! Url:", url);
+    console.log(`${GREEN_LOG_COLOUR} GitHub Service: Starting to get pages! Url:`, url);
     const delay = 5000; // = 5s, delay between fetching pages from GitHub API. Delay added to not hit abuse rate limit https://developer.github.com/v3/#abuse-rate-limits
     return this.getPage<T>(url, options, rateLimitType).pipe(
       expand(({ next }) => next ? timer(delay).pipe(concatMap(() => this.getPage<T>(next, options, rateLimitType))) : empty()),
@@ -129,7 +132,7 @@ export class GithubService {
   }
 
   private getPage<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<{ data: T[], next: string }> {
-    console.log("\u001b[1;32m GitHub Service: Getting next page! Url:", url);
+    console.log(`${GREEN_LOG_COLOUR} GitHub Service: Getting next page! Url:`, url);
     return this.get<GitHubSearchResult<T>>(url, options, rateLimitType)
       .pipe(
         map(res => {
