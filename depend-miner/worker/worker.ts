@@ -101,7 +101,7 @@ server.delete('/csvmetrics', (request, reply) => {
 server.listen(3000, "0.0.0.0");
 
 // init
-console.log("Worker up :)");
+console.log("Worker up :) 1.0.2");
 setupWorker();
 
 async function setupWorker() {

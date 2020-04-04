@@ -38,10 +38,12 @@ services:
       - PORT=3000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - NEO4J_URL=bolt://neo4j:neo4j@neo4j:7687
-      - M2_HOME=/usr/share/maven
+      - NEO4J_URL=bolt://neo4j:7687
+      - NEO4J_USERNAME=neo4j
+      - NEO4J_PASSWORD=6ac898ff3d4f12bcc48db4872ff3c37a
       - JP2G_JAR=/home/app/jp2g/jp2g.jar
       - MAX_SEARCH_DEPTH=1
+      - MIN_STAR_COUNT=5
     # command: "sh -c 'node /app/build/worker.js'"
     # command: npm run pure:start-dev
     depends_on: 
@@ -70,8 +72,8 @@ services:
       - "7687:7687"
       - "7474:7474"
       - "7473:7473"
-    # environment: 
-    #   - NEO4J_AUTH=neo4j/test
+    environment: 
+      - NEO4J_AUTH=neo4j/6ac898ff3d4f12bcc48db4872ff3c37a
     volumes:
       # - $HOME/neo4j/data:/data
       # - $HOME/neo4j/logs:/logs

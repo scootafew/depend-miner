@@ -3,9 +3,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue, Job } from 'bull';
 import { ArtifactJob, Repository, JobType, Artifact, AnalyseJob, RepositoryFetchJob } from '@app/models';
 import { GithubService } from '../github.service';
-import { map, finalize, count } from 'rxjs/operators';
-import { Observable } from 'rxjs';
-import { DoneCallback } from 'bull';
+import { map, count } from 'rxjs/operators';
 
 @Injectable()
 export class DependentsSearchService {
@@ -46,7 +44,7 @@ export class DependentsSearchService {
     this.repositoryFetchQueue.process(async (job: Job<RepositoryFetchJob>, done) => {
       const {user, repoName, searchDepth} = job.data;
       this.repoService.getRepositoryInBackground(user, repoName, "GitHub").toPromise().then(repo => {
-        if (!repo.isFork && repo.stars > 1) {
+        if (!repo.isFork && repo.stars > (+process.env.MIN_STAR_COUNT || 3)) {
           console.log(`Repo ${repo.fullName}, stars: ${repo.stars}, fork: ${repo.isFork}`)
           this.addRepoToQueue(this.analyseQueue, repo, searchDepth);
         }
