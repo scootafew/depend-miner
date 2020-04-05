@@ -1,6 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpService } from '@nestjs/common';
 import * as promClient from 'prom-client';
 import { Registry, Histogram, Counter, Metric } from 'prom-client';
+import { Resolver } from 'dns';
+import { Observable, of, forkJoin, empty } from 'rxjs';
+import { mergeMap, map, catchError } from 'rxjs/operators';
 
 @Injectable()
 export class MetricsService {
@@ -33,7 +36,7 @@ export class MetricsService {
 
   private localRegistries: {[key: string]: Metric<string>}[] = [this.counterRegistry, this.histogramRegistry];
 
-  constructor() {
+  constructor(private readonly http: HttpService) {
     this.localRegistries.forEach(registry => {
       for (let key in registry) {
         this.metricsRegistry.registerMetric(registry[key]);
@@ -66,6 +69,38 @@ export class MetricsService {
 
   get histograms() {
     return this.histogramRegistry;
+  }
+
+  async scrapeWorkerEndpoints(endpoint: string): Promise<string> {
+    const dnsResolver = new Resolver();
+
+    return new Promise(async (resolve, reject) => {
+      dnsResolver.resolve(process.env.WORKER_SVC_NAME, (err, addresses) => {
+        if (err) {
+          reject(err);
+        }
+        console.log(`Found workers at IP's: `, addresses);
+        return of(addresses).pipe(
+          mergeMap(addresses => {
+            return forkJoin(addresses.map(address => {
+              return this.scrapeWorkerEndpoint(address, endpoint)
+            }))
+          })
+        ).subscribe(result => {
+          resolve(result.join("\n"));
+        })
+      })
+    })
+  }
+
+  scrapeWorkerEndpoint(ip: string, endpoint: string): Observable<any> {
+    return this.http.get(`http://${ip}:3000/${endpoint}`).pipe(
+      map(res => res.data),
+      catchError(err => {
+        console.log(`Error in response from worker at ${ip}`);
+        return of("");
+      })
+    );
   }
 
 }

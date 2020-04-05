@@ -16,7 +16,11 @@ COPY ./libs ./libs
 COPY ./src ./src
 RUN npm run build
 
-CMD ["npm", "run", "start:dev"]
+## Wait script, configured with ENV VAR WAIT_HOSTS
+ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.2.1/wait /wait
+RUN chmod +x /wait
+
+CMD /wait && npm run start:dev
 
 #
 # Production stage.
@@ -32,7 +36,11 @@ COPY package*.json ./
 COPY tsconfig*.json ./
 RUN npm ci --quiet --only=production
 
+## Wait script, configured with ENV VAR WAIT_HOSTS
+ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.2.1/wait /wait
+RUN chmod +x /wait
+
 ## We just need the build to execute the command
 COPY --from=development /usr/src/app/dist ./dist
 
-CMD ["npm", "run", "start:prod"]
+CMD /wait && npm run start:prod

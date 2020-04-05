@@ -19,6 +19,7 @@ type RateLimits = {
 const REDIS_CONFIG = {
   host: process.env.REDIS_HOST || "localhost",
   port: Number(process.env.REDIS_PORT) || 6379,
+  password: process.env.REDIS_PASSWORD
 }
 
 const RED_LOG_COLOUR = "\u001b[1;31m";

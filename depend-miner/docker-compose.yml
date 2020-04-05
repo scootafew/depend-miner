@@ -2,7 +2,7 @@ version: '3.7'
 
 volumes:
   redis_data:
-  neo4j_de_data:
+  neo4jdev_data:
   prometheus_data: {}
   grafana_data: {}
 
@@ -16,10 +16,13 @@ services:
     depends_on:
       - redis
     environment:
+      - WAIT_HOSTS=redis:6379
+      - WORKER_SVC_NAME=worker_dev
       - NODE_ENV=development
       - PORT=3000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=fd8cf3705da4d84faa8540911892ef8e
       - GITHUB_API_TOKEN=351b1b95793f9c3cf71af0540b0c147aa6e08e36
       - MAX_SEARCH_DEPTH=1
       - MIN_STAR_COUNT=5
@@ -38,14 +41,17 @@ services:
       target: development
       dockerfile: worker/Dockerfile
     environment:
+      - WAIT_HOSTS=neo4jdev:7687,redis:6379
       - NODE_ENV=development
       - PORT=3000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - NEO4J_URI=bolt://neo4j_dev:7687
+      - REDIS_PASSWORD=fd8cf3705da4d84faa8540911892ef8e
+      - NEO4J_URI=bolt://neo4jdev:7687
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=test
       - JP2G_JAR=/home/app/jp2g/jp2g.jar
+      - WORKER_SVC_NAME=worker_dev
       - MAX_SEARCH_DEPTH=1
     # command: "sh -c 'node /app/build/worker.js'"
     # command: npm run pure:start-dev If broken look here!!!
@@ -54,10 +60,10 @@ services:
       - ./libs/models:/home/app/libs/models
     depends_on: 
       - redis
-      - neo4j_de
+      - neo4jdev
       - manager_dev
     links: 
-      - neo4j_de
+      - neo4jdev
     ports: 
       - "3000"
 
@@ -66,13 +72,13 @@ services:
     image: redis:4.0.14-alpine
     expose:
       - "6379"
-    # entrypoint: redis-server --requirepass 6ac898ff3d4f12bcc48db4872ff3c37a
-    # volumes:
-    #   - redis_data:/data
+    entrypoint: redis-server --requirepass fd8cf3705da4d84faa8540911892ef8e
+    volumes:
+      - redis_data:/data
 
   
-  neo4j_de:
-    container_name: neo4j_de
+  neo4jdev:
+    container_name: neo4jdev
     image: neo4j:4.0
     ports:
       - "7687:7687"
@@ -83,7 +89,7 @@ services:
     volumes:
       # - $HOME/neo4j/data:/data
       # - $HOME/neo4j/logs:/logs
-      - neo4j_de_data:/data
+      - neo4jdev_data:/data
 
 
   # bull-board:
@@ -106,7 +112,7 @@ services:
       - manager_dev
     environment:
       - REDIS_HOST=redis
-      - REDIS_PASSWORD=''
+      - REDIS_PASSWORD=fd8cf3705da4d84faa8540911892ef8e
       - PORT=3020
     ports:
       - "3020:3000"

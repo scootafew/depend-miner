@@ -5,6 +5,7 @@ import * as Redis from 'ioredis';
 import * as promClient from 'prom-client';
 import * as fastify from 'fastify'
 import * as fs from 'fs';
+import * as path from 'path';
 import * as csvWriter from 'csv-write-stream';
 import { Registry, Histogram, Counter } from 'prom-client';
 import { performance } from 'perf_hooks';
@@ -22,9 +23,10 @@ const exec = util.promisify(child_process.exec);
 const REDIS_CONFIG = {
   host: process.env.REDIS_HOST || "localhost",
   port: Number(process.env.REDIS_PORT) || 6379,
+  password: process.env.REDIS_PASSWORD
 }
-const redisClient = new Redis(REDIS_CONFIG.port, REDIS_CONFIG.host);
-const subscriber = new Redis(REDIS_CONFIG.port, REDIS_CONFIG.host);
+const redisClient = new Redis(REDIS_CONFIG.port, REDIS_CONFIG.host, { password: REDIS_CONFIG.password });
+const subscriber = new Redis(REDIS_CONFIG.port, REDIS_CONFIG.host, { password: REDIS_CONFIG.password });
 
 var bullOpts = {
   createClient: function (type) {
@@ -34,7 +36,7 @@ var bullOpts = {
       case 'subscriber':
         return subscriber;
       default:
-        return new Redis(REDIS_CONFIG.port, REDIS_CONFIG.host);
+        return new Redis(REDIS_CONFIG.port, REDIS_CONFIG.host, { password: REDIS_CONFIG.password });
     }
   }
 }
@@ -59,6 +61,22 @@ metricsRegistry.registerMetric(processingTime);
 const analyseQueue = new BullQueue('analyse', bullOpts);
 const dependentsSearchQueue: Queue = new BullQueue("dependentsSearch", bullOpts);
 const dependencySearchQueue: Queue = new BullQueue("dependencySearch", bullOpts);
+// const cronCleanupQueue: Queue = new BullQueue("cronCleanupQueue", bullOpts);
+
+// const cleanupFrequency = 10000 // 10 seconds
+// cronCleanupQueue.add(process.env.HOSTNAME, {}, {
+//   repeat: {
+//     every: cleanupFrequency
+//   }
+// })
+
+// cronCleanupQueue.process(process.env.HOSTNAME, async (job: Job, done) => {
+//   console.log(`Waiting for current analyse job to finish then will cleanup dirs...`);
+//   analyseQueue.whenCurrentJobsFinished().then(() => {
+//     cleanDirectories();
+//     done();
+//   })
+// });
 
 interface ProcessingResult {
   exitCode: number,
@@ -118,6 +136,8 @@ async function setupWorker() {
       ];
 
       const processingResult = await anaylse(name, args, outputHandlers);
+
+      cleanTempDirectories();
       
       done(null, processingResult);
     } catch (err) {
@@ -161,7 +181,7 @@ async function spawnProcess(args: string[], outputHandlers: ((output: string) =>
 async function handleStdout(stdout: Readable, outputHandlers: OutputHandler[]): Promise<string> {
   stdout.pipe(process.stdout);
   
-  return new Promise(async function (resolve) {
+  return new Promise(async (resolve) => {
     stdout.on("data", (data: Buffer) => {
       // Line could be single linefeed char, if so ignore
       if (data.length > 1) {
@@ -181,7 +201,7 @@ async function handleStdout(stdout: Readable, outputHandlers: OutputHandler[]): 
 }
 
 async function handleProcessExit(childProcess: ChildProcessWithoutNullStreams, exitMessage$: Promise<string>): Promise<ProcessingResult> {
-  return new Promise(async function (resolve, reject) {
+  return new Promise(async (resolve, reject) => {
       childProcess.on("exit", async code => {
         console.log('Child process exited with code ' + code.toString())
 
@@ -233,4 +253,16 @@ const foundDependencyHandler = (prevSearchDepth: number) => (line: String) => {
     .then(() => console.log(`\u001b[1;36m Added dependency: ${dependency.toString()} to queue ${analyseQueue.name}`))
     .catch(err => console.log(err));
   }
+}
+
+function cleanTempDirectories() {
+  console.log("Starting cleanup...");
+  const dirs = [
+    path.normalize("../clones"),
+    path.normalize("../artifacts")
+  ];
+  dirs.forEach(dir => {
+    console.log(`Removing directory ${dir}`)
+    fs.rmdirSync(dir, { recursive: true })
+  });
 }

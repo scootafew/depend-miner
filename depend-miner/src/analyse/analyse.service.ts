@@ -78,12 +78,12 @@ export class AnalyseService {
 
   async emptyQueues() {
     await this.analyseQueue.empty();
-    this.analyseQueue.getActive().then((jobs: Job[]) => jobs.forEach(job => job.remove()));
+    this.analyseQueue.clean(0, 'active');
     await this.repositoryFetchQueue.empty();
-    this.repositoryFetchQueue.getActive().then((jobs: Job[]) => jobs.forEach(job => job.remove()));
+    this.repositoryFetchQueue.clean(0, 'active');
     await this.dependencySearchQueue.empty();
-    this.dependencySearchQueue.getActive().then((jobs: Job[]) => jobs.forEach(job => job.remove()));
+    this.dependencySearchQueue.clean(0, 'active');
     await this.dependentsSearchQueue.empty();
-    this.dependentsSearchQueue.getActive().then((jobs: Job[]) => jobs.forEach(job => job.remove()));
+    this.dependentsSearchQueue.clean(0, 'active');
   }
 }

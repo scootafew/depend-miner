@@ -1,0 +1,9 @@
+MANAGER_SERVICE=manager_dev
+WORKER_SERVICE=worker_dev
+NEO4J_SERVICE=neo4jdev
+
+https://stackoverflow.com/questions/42555663/use-yaml-variables-to-name-keys
+https://serversforhackers.com/c/div-variables-in-docker-compose
+https://docs.docker.com/compose/environment-variables/
+
+Name file dev.env

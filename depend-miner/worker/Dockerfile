@@ -33,9 +33,13 @@ COPY ./worker/ ./worker/
 COPY ./libs/models/ ./libs/models/
 RUN npm run build
 
+## Wait script, configured with ENV VAR WAIT_HOSTS
+ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.2.1/wait /wait
+RUN chmod +x /wait
+
 COPY --from=scootafew/jp2g:latest /home/app/jp2g jp2g
 
-CMD ["npm", "run", "pure:start-dev"]
+CMD /wait && npm run pure:start-dev
 
 
 #
@@ -52,8 +56,12 @@ COPY package*.json ./
 COPY tsconfig*.json ./
 RUN npm ci --quiet --only=production
 
+## Wait script, configured with ENV VAR WAIT_HOSTS
+ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.2.1/wait /wait
+RUN chmod +x /wait
+
 ## We just need the build to execute the command
 COPY --from=development /home/app/dist ./dist
 COPY --from=scootafew/jp2g:latest /home/app/jp2g ./jp2g
 
-CMD ["npm", "run", "worker:start:prod"]
+CMD /wait && npm run worker:start:prod
