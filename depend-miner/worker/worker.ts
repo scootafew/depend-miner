@@ -232,7 +232,7 @@ async function handleProcessExit(childProcess: ChildProcessWithoutNullStreams, e
 const foundArtifactHandler = (jobType: JobType, prevSearchDepth: number) => (line: String) => {
   // Only if repository job as otherwise dependents search will already have been performed for artifact
   if (line.startsWith("Found maven artifact: ") && (jobType == JobType.Repository) && (prevSearchDepth < +process.env.MAX_SEARCH_DEPTH)) {
-    let artifactString = line.replace("/^(Found maven dependency: )/", "");
+    let artifactString = line.replace(/^(Found maven artifact: )/, "");
     let artifact = Artifact.fromString(artifactString);
 
     // Queue dependents processing
@@ -245,7 +245,7 @@ const foundArtifactHandler = (jobType: JobType, prevSearchDepth: number) => (lin
 
 const foundDependencyHandler = (prevSearchDepth: number) => (line: String) => {
   if (line.startsWith("Found maven dependency: ") && (prevSearchDepth < +process.env.MAX_SEARCH_DEPTH)) {
-    let dependencyString = line.replace("/^(Found maven dependency: )/", "");
+    let dependencyString = line.replace(/^(Found maven dependency: )/, "");
     let dependency = Artifact.fromString(dependencyString);
 
     // Queue dependency processing
