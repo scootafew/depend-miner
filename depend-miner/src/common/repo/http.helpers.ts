@@ -32,7 +32,7 @@ export const genericRetryStrategy = ({
       if (error.response.status == 403) {
         console.log(`Attempt ${retryAttempt}: retrying in ${retryAttempt * 18000}ms`);
         // retry after 3min, 6min, etc...
-        return timer(retryAttempt * scalingDuration);
+        return timer(retryAttempt * 18000);
       }
 
       console.log(`Attempt ${retryAttempt}: retrying in ${retryAttempt * scalingDuration}ms`);

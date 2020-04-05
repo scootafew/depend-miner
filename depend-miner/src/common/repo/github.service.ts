@@ -33,7 +33,7 @@ export class GithubService {
   private repositoryFetchQueue = new BullQueue('githubRepositoryFetchQueue', {
     redis: REDIS_CONFIG,
     limiter: { // Delay added to not hit abuse rate limit https://developer.github.com/v3/#abuse-rate-limits
-      duration: 2000, // every 2 seconds
+      duration: 4000, // every 4 seconds
       max: 1, // 1 jobs
       bounceBack: false
     }
@@ -54,6 +54,8 @@ export class GithubService {
     [RateLimitType.Core]: new BehaviorSubject(null),
     [RateLimitType.Search]: new BehaviorSubject(null)
   }
+
+  PAGE_FETCH_DELAY = 15000; // = 15s, delay between fetching pages from GitHub API. Delay added to not hit abuse rate limit https://developer.github.com/v3/#abuse-rate-limits
 
   constructor(private readonly http: HttpService, private readonly metricsService: MetricsService) {
     this.getResourceRateLimits();
@@ -109,12 +111,12 @@ export class GithubService {
   }
 
   private execute(request: PendingRequest): Observable<Repository> {
-    console.log(`\u001b[1;32m GitHub Service: Getting url ${request.url}`);
+    console.log(`\u001b[1;32m GitHub Service@${this.timestamp}: Getting url ${request.url}`);
     return this.get<any>(request.url, this.options, request.rateLimitType).pipe(
       map(res => adapters.get("GitHubRepository").adapt(res.data)),
       catchError((err: any) => {
         if (err.response?.status == HttpStatus.NOT_FOUND) {
-          console.log(`${RED_LOG_COLOUR} GitHub Service: Repository at ${request.url} not found!`);
+          console.log(`${RED_LOG_COLOUR} GitHub Service@${this.timestamp}: Repository at ${request.url} not found!`);
           return empty();
         } else {
           throw err;
@@ -124,16 +126,15 @@ export class GithubService {
   }
 
   private getPages<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<T> {
-    console.log(`${GREEN_LOG_COLOUR} GitHub Service: Starting to get pages! Url:`, url);
-    const delay = 5000; // = 5s, delay between fetching pages from GitHub API. Delay added to not hit abuse rate limit https://developer.github.com/v3/#abuse-rate-limits
+    console.log(`${GREEN_LOG_COLOUR} GitHub Service@${this.timestamp}: Starting to get pages! Url:`, url);
     return this.getPage<T>(url, options, rateLimitType).pipe(
-      expand(({ next }) => next ? timer(delay).pipe(concatMap(() => this.getPage<T>(next, options, rateLimitType))) : empty()),
+      expand(({ next }) => next ? timer(this.PAGE_FETCH_DELAY).pipe(concatMap(() => this.getPage<T>(next, options, rateLimitType))) : empty()),
       concatMap(({ data }) => data)
     )
   }
 
   private getPage<T>(url: string, options: any, rateLimitType: RateLimitType): Observable<{ data: T[], next: string }> {
-    console.log(`${GREEN_LOG_COLOUR} GitHub Service: Getting next page! Url:`, url);
+    console.log(`${GREEN_LOG_COLOUR} GitHub Service@${this.timestamp}: Getting next page! Url:`, url);
     return this.get<GitHubSearchResult<T>>(url, options, rateLimitType)
       .pipe(
         map(res => {
@@ -208,6 +209,10 @@ export class GithubService {
 
   private incHttpResponseCount(statusCode: number): void {
     this.metricsService.counters.httpResponse.inc({destination: "GitHub", status_code: statusCode});
+  }
+
+  private get timestamp() {
+    return new Date().valueOf();
   }
 
 }

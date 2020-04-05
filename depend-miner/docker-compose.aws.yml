@@ -13,14 +13,13 @@ services:
       - redis
     environment:
       - WAIT_HOSTS=redis:6379
-      - WORKER_SVC_NAME=worker
+      - WORKER_SVC_NAME=dependTest_worker
       - NODE_ENV=production
       - PORT=3000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=fd8cf3705da4d84faa8540911892ef8e
       - GITHUB_API_TOKEN=351b1b95793f9c3cf71af0540b0c147aa6e08e36
-      - WORKER_SVC_NAME=worker
       - MAX_SEARCH_DEPTH=1
       - MIN_STAR_COUNT=5
     # command: npm run start:dev
@@ -31,7 +30,7 @@ services:
     deploy:
       replicas: 1
       placement:
-        constraints: [node.labels.node == manager]  
+        constraints: [node.labels.ec2 == t2.small]  
     restart: always
 
   worker:
@@ -59,9 +58,9 @@ services:
     expose: 
       - "3000"
     deploy:
-      replicas: 2
+      replicas: 1
       placement:
-        constraints: [node.labels.node == worker]
+        constraints: [node.labels.ec2 == c5.large]
     restart: always
 
   redis:
@@ -75,7 +74,7 @@ services:
     deploy:
       replicas: 1
       placement:
-        constraints: [node.labels.node == manager]
+        constraints: [node.labels.ec2 == t2.micro]
     restart: always
 
   
@@ -95,7 +94,7 @@ services:
     deploy:
       replicas: 1
       placement:
-        constraints: [node.labels.node == manager]
+        constraints: [node.labels.ec2 == t2.medium]
     restart: always
 
 
