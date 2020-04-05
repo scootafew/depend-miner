@@ -104,7 +104,7 @@ export class GithubService {
 
   searchCode(query: string): Observable<GitHubCodeSearchResultItem> {
     let url = `https://api.github.com/search/code?q=${query}&per_page=100`;
-    return this.getPages<GitHubCodeSearchResultItem>(url, this.options, RateLimitType.Core);
+    return this.getPages<GitHubCodeSearchResultItem>(url, this.options, RateLimitType.Search);
   }
 
   private execute(request: PendingRequest): Observable<Repository> {

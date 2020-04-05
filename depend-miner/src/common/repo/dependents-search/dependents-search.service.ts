@@ -44,7 +44,7 @@ export class DependentsSearchService {
     this.repositoryFetchQueue.process(async (job: Job<RepositoryFetchJob>, done) => {
       const {user, repoName, searchDepth} = job.data;
       this.repoService.getRepositoryInBackground(user, repoName, "GitHub").toPromise().then(repo => {
-        if (!repo.isFork && repo.stars > (+process.env.MIN_STAR_COUNT || 3)) {
+        if (!repo.isFork && repo.stars >= (+process.env.MIN_STAR_COUNT || 3)) {
           console.log(`Repo ${repo.fullName}, stars: ${repo.stars}, fork: ${repo.isFork}`)
           this.addRepoToQueue(this.analyseQueue, repo, searchDepth);
         }

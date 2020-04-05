@@ -9,7 +9,7 @@ import * as csvWriter from 'csv-write-stream';
 import { Registry, Histogram, Counter } from 'prom-client';
 import { performance } from 'perf_hooks';
 import { Job, Queue } from 'bull';
-import { Repository, Artifact, JobType, AnalyseJob } from '@app/models';
+import { Artifact, JobType, AnalyseJob } from '@app/models';
 import { Readable } from 'stream';
 import { Server, IncomingMessage, ServerResponse } from 'http'
 import {ChildProcessWithoutNullStreams } from 'child_process';
@@ -69,8 +69,7 @@ interface ProcessingResult {
 }
 
 const opts = [
-  `-DM2_HOME=${process.env.M2_HOME}`,
-  `-DNEO4J_URI=${process.env.NEO4J_URL}`,
+  // `-DNEO4J_URI=${process.env.NEO4J_URI}`,
   "-jar",
   `${process.env.JP2G_JAR}`,
 ]
@@ -119,11 +118,6 @@ async function setupWorker() {
       ];
 
       const processingResult = await anaylse(name, args, outputHandlers);
-
-      // console.log(`Search depth: ${searchDepth}/${process.env.MAX_SEARCH_DEPTH}`);
-      // if (searchDepth < +process.env.MAX_SEARCH_DEPTH) {
-      //   handleProcessingResult(type, processingResult, searchDepth);
-      // }
       
       done(null, processingResult);
     } catch (err) {
@@ -148,8 +142,6 @@ async function anaylse(name: string, args: string[], outputHandlers: OutputHandl
 
     appendMetricToCsv(name, processingResult.timeTaken, processingResult.message);
 
-    // console.log('stdout:', stdout);
-    // console.error('stderr:', stderr);
     return processingResult;
   } catch (err) {
     appendMetricToCsv(name, 0, err.message);
@@ -242,45 +234,3 @@ const foundDependencyHandler = (prevSearchDepth: number) => (line: String) => {
     .catch(err => console.log(err));
   }
 }
-
-// async function handleProcessingResult(jobType: JobType, result: ProcessingResult, prevSearchDepth: number) {
-//   // Queue dependents processing
-//   // Only if repository job as otherwise dependents search will already have been performed for artifact
-//   if (jobType == JobType.Repository) {
-//     result.processedArtifacts.map(artifact => {
-//       dependentsSearchQueue.add(JobType.Artifact, {artifact: artifact, searchDepth: prevSearchDepth})
-//       .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${dependentsSearchQueue.name}`))
-//       .catch(err => console.log(err));
-//     })
-//   }
-
-//   // Queue dependency processing
-//   result.dependencies.map(artifact => {
-//     analyseQueue.add(JobType.Artifact, AnalyseJob.fromArtifact(artifact, prevSearchDepth + 1))
-//     .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${dependencySearchQueue.name}`))
-//     .catch(err => console.log(err));
-//   })
-// }
-
-// async function handleArtifactProcessingResult(artifact: Artifact, result: ProcessingResult) {
-//   // Queue dependents processing
-//   dependentsSearchQueue.add(JobType.Artifact, {artifact: artifact})
-//     .then(() => console.log(`Added artifact: ${repo.fullName} to queue ${dependentsSearchQueue.name}`))
-//     .catch(err => console.log(err));
-
-//   // Queue dependency processing
-//   result.dependencies.map(artifact => {
-//     analyseQueue.add(JobType.Artifact, {artifact: artifact})
-//     .then(() => console.log(`Added artifact: ${artifact.toString()} to queue ${dependencySearchQueue.name}`))
-//     .catch(err => console.log(err));
-//   })
-// }
-
-// Duplicated code
-async function addToQueue(queue: Queue, repo: Repository, lifo: boolean = false) {
-  queue.add({repo: repo}, {lifo: lifo})
-    .then(() => console.log(`Added repo: ${repo.fullName} to queue ${queue.name}`))
-    .catch(err => console.log(err));
-}
-
-// yo

@@ -38,7 +38,7 @@ services:
       - PORT=3000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - NEO4J_URL=bolt://neo4j:7687
+      - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=6ac898ff3d4f12bcc48db4872ff3c37a
       - JP2G_JAR=/home/app/jp2g/jp2g.jar
@@ -105,72 +105,72 @@ services:
     ports:
       - "3020:3000"
 
-  cadvisor:
-    image: google/cadvisor:latest
-    ports:
-      - 8080:8080
-    volumes:
-      - ./:/rootfs:ro
-      - /var/run:/var/run:rw
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-    restart: always
-    deploy:
-      mode: global
+  # cadvisor:
+  #   image: google/cadvisor:latest
+  #   ports:
+  #     - 8080:8080
+  #   volumes:
+  #     - ./:/rootfs:ro
+  #     - /var/run:/var/run:rw
+  #     - /sys:/sys:ro
+  #     - /var/lib/docker:/var/lib/docker:ro
+  #   restart: always
+  #   deploy:
+  #     mode: global
 
-  node-exporter:
-    image: prom/node-exporter:latest
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - ./:/rootfs:ro
-    # command: 
-    #   - '--path.procfs=/host/proc' 
-    #   - '--path.sysfs=/host/sys'
-    #   - --collector.filesystem.ignored-mount-points
-    #   - "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
-    ports:
-      - 9100:9100
-    # networks:
-    #   - back-tier
-    restart: always
-    deploy:
-      mode: global
+  # node-exporter:
+  #   image: prom/node-exporter:latest
+  #   volumes:
+  #     - /proc:/host/proc:ro
+  #     - /sys:/host/sys:ro
+  #     - ./:/rootfs:ro
+  #   # command: 
+  #   #   - '--path.procfs=/host/proc' 
+  #   #   - '--path.sysfs=/host/sys'
+  #   #   - --collector.filesystem.ignored-mount-points
+  #   #   - "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
+  #   ports:
+  #     - 9100:9100
+  #   # networks:
+  #   #   - back-tier
+  #   restart: always
+  #   deploy:
+  #     mode: global
 
-  prometheus:
-    image: prom/prometheus:v2.1.0
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      # - '--storage.tsdb.path=/prometheus'
-      # - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      # - '--web.console.templates=/usr/share/prometheus/consoles'
-    ports:
-      - 9090:9090
-    links:
-      - cadvisor:cadvisor
-    depends_on:
-      - worker
-      - cadvisor
-    # networks:
-    #   - back-tier
-    restart: always
+  # prometheus:
+  #   image: prom/prometheus:v2.1.0
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  #     - prometheus_data:/prometheus
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     # - '--storage.tsdb.path=/prometheus'
+  #     # - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+  #     # - '--web.console.templates=/usr/share/prometheus/consoles'
+  #   ports:
+  #     - 9090:9090
+  #   links:
+  #     - cadvisor:cadvisor
+  #   depends_on:
+  #     - worker
+  #     - cadvisor
+  #   # networks:
+  #   #   - back-tier
+  #   restart: always
 
-  grafana:
-    image: grafana/grafana:latest
-    # user: "104"
-    depends_on:
-      - prometheus
-    ports:
-      - 3040:3000
-    volumes:
-      - grafana_data:/var/lib/grafana
-    #   - ./grafana/provisioning/:/etc/grafana/provisioning/
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=secret
-    # networks:
-    #   - back-tier
-    #   - front-tier
-    restart: always
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   # user: "104"
+  #   depends_on:
+  #     - prometheus
+  #   ports:
+  #     - 3040:3000
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #   #   - ./grafana/provisioning/:/etc/grafana/provisioning/
+  #   environment:
+  #     - GF_SECURITY_ADMIN_PASSWORD=secret
+  #   # networks:
+  #   #   - back-tier
+  #   #   - front-tier
+  #   restart: always
