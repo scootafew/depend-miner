@@ -92,14 +92,16 @@ const opts = [
   `${process.env.JP2G_JAR}`,
 ]
 
-function appendMetricToCsv(id: string, processingTime: number, message: string) {
+function appendMetricToCsv(jobType: string, id: string, processingTime: number, success: boolean, message: string) {
   let writer = csvWriter({sendHeaders: false})
   writer.pipe(fs.createWriteStream('metric_file.csv', {flags: 'a'})) // append output
   writer.write({
     worker: process.env.HOSTNAME,
+    jobType: jobType,
     timestamp:new Date().valueOf(),
     id: id,
     processingTime: processingTime,
+    success: success,
     message: message
   });
   writer.end()
@@ -143,10 +145,14 @@ async function setupWorker() {
 
       const processingResult = await anaylse(name, args, outputHandlers);
 
+      appendMetricToCsv(type, name, processingResult.timeTaken, true, processingResult.message);
+
       cleanTempDirectories();
       
       done(null, processingResult);
     } catch (err) {
+      appendMetricToCsv(type, name, 0, false, err.message);
+
       console.log(`Got error analysing: ${name}`);
       done(new Error(`${job.data.name} - ${err.message}`));
     }
@@ -166,12 +172,8 @@ async function anaylse(name: string, args: string[], outputHandlers: OutputHandl
     // report metric
     processingTime.labels(name).observe(processingResult.timeTaken);
 
-    appendMetricToCsv(name, processingResult.timeTaken, processingResult.message);
-
     return processingResult;
   } catch (err) {
-    appendMetricToCsv(name, 0, err.message);
-    
     throw err;
   }
 }
