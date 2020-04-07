@@ -41,6 +41,14 @@ var bullOpts = {
   }
 }
 
+export enum LogColor {
+  Red = "\u001b[31m",
+  Green = "\u001b[32m",
+  Blue = "\u001b[34m",
+  Purple = "\u001b[35m",
+  Cyan = "\u001b[36m",
+}
+
 const metricsRegistry = new Registry();
 const intervalCollector = promClient.collectDefaultMetrics({prefix: 'node_worker_', });
 const processedJobs = new Counter({
@@ -126,7 +134,7 @@ server.delete('/csvmetrics', (request, reply) => {
 server.listen(3000, "0.0.0.0");
 
 // init
-console.log("Worker up :) 1.0.3");
+console.log("Worker up :) 1.0.4");
 setupWorker();
 
 async function setupWorker() {
@@ -134,8 +142,8 @@ async function setupWorker() {
     console.log(job.data);
 
     const { name, args, searchDepth, type } = job.data;
-    console.log(`\u001b[1;34m Analysing: ${name}`);
-    console.log(`\u001b[1;34m Job Type: ${type}`);
+    log(`Analysing: ${name}`, LogColor.Blue);
+    log(`Job Type: ${type}`, LogColor.Blue);
 
     try {
       const outputHandlers: OutputHandler[] = [
@@ -215,7 +223,7 @@ async function handleProcessExit(childProcess: ChildProcessWithoutNullStreams, e
 
         let exitMessage = await exitMessage$;
 
-        console.log("New Exit Message: " + exitMessage);
+        console.log("Exit Message: " + exitMessage);
 
         // reject if exited with non-zero exit code
         if (code) {
@@ -245,13 +253,13 @@ const foundArtifactHandler = (jobType: JobType, prevSearchDepth: number) => (lin
 
     // Queue artifact processing - allows multiple workers to contribute to processing artifacts from single repo
     analyseQueue.add(JobType.Artifact, AnalyseJob.fromArtifact(artifact, prevSearchDepth))
-      .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${analyseQueue.name}`))
+      .then(() => log(`Added artifact: ${artifact.toString()} to queue ${analyseQueue.name}`, LogColor.Cyan))
       .catch(err => console.log(err));
 
     if (prevSearchDepth < +process.env.MAX_SEARCH_DEPTH) {
       // Queue dependents processing
       dependentsSearchQueue.add(JobType.Artifact, { artifact: artifact, searchDepth: prevSearchDepth })
-        .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${dependentsSearchQueue.name}`))
+        .then(() => log(`Added artifact: ${artifact.toString()} to queue ${dependentsSearchQueue.name}`, LogColor.Cyan))
         .catch(err => console.log(err));
     }
   }
@@ -265,7 +273,7 @@ const foundDependencyHandler = (prevSearchDepth: number) => (line: String) => {
 
     // Queue dependency processing
     analyseQueue.add(JobType.Artifact, AnalyseJob.fromArtifact(dependency, prevSearchDepth + 1))
-    .then(() => console.log(`\u001b[1;36m Added dependency: ${dependency.toString()} to queue ${analyseQueue.name}`))
+    .then(() => log(`Added dependency: ${dependency.toString()} to queue ${analyseQueue.name}`, LogColor.Cyan))
     .catch(err => console.log(err));
   }
 }
@@ -280,4 +288,9 @@ function cleanTempDirectories() {
     console.log(`Removing directory ${dir}`)
     fs.rmdirSync(dir, { recursive: true })
   });
+}
+
+function log(str: string, color: LogColor) {
+  const ANSI_RESET = "\u001b[0m";
+  console.log(color + str + ANSI_RESET);
 }

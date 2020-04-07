@@ -58,7 +58,8 @@ services:
     expose: 
       - "3000"
     deploy:
-      replicas: 1
+      replicas: 3
+      endpoint_mode: dnsrr # to enable dns service discovery in swarm mode
       placement:
         constraints: [node.labels.ec2 == c5.large]
     restart: always
@@ -94,7 +95,7 @@ services:
     deploy:
       replicas: 1
       placement:
-        constraints: [node.labels.ec2 == t2.medium]
+        constraints: [node.labels.ec2 == c5.large]
     restart: always
 
 
