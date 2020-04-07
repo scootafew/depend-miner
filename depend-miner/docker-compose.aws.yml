@@ -99,18 +99,24 @@ services:
 
 
 
-  # bull-board:
-  #   image: tombh/bull-board:latest
-  #   container_name: bull-board
-  #   depends_on: 
-  #     - redis
-  #     - manager
-  #   environment:
-  #     - REDIS_HOST=redis
-  #     - REDIS_PASSWORD=fd8cf3705da4d84faa8540911892ef8e
-  #     - PORT=3020
-  #   ports:
-  #     - "3020:3000"
+  bull-board:
+    image: tombh/bull-board:latest
+    container_name: bull-board
+    depends_on: 
+      - redis
+      - manager
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=fd8cf3705da4d84faa8540911892ef8e
+      - PORT=3020
+      - REFRESH_INTERVAL=60000
+    ports:
+      - "3020:3000"
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.labels.ec2 == t2.small]
+    restart: always
 
   # cadvisor:
   #   image: google/cadvisor:latest

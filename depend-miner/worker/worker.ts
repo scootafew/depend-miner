@@ -94,8 +94,14 @@ const opts = [
 
 function appendMetricToCsv(id: string, processingTime: number, message: string) {
   let writer = csvWriter({sendHeaders: false})
-  writer.pipe(fs.createWriteStream('metric_file.csv', {flags: 'a'}))
-  writer.write({timestamp:new Date().valueOf(), id: id, processingTime: processingTime, message: message})
+  writer.pipe(fs.createWriteStream('metric_file.csv', {flags: 'a'})) // append output
+  writer.write({
+    worker: process.env.HOSTNAME,
+    timestamp:new Date().valueOf(),
+    id: id,
+    processingTime: processingTime,
+    message: message
+  });
   writer.end()
 }
 
@@ -231,14 +237,21 @@ async function handleProcessExit(childProcess: ChildProcessWithoutNullStreams, e
 
 const foundArtifactHandler = (jobType: JobType, prevSearchDepth: number) => (line: String) => {
   // Only if repository job as otherwise dependents search will already have been performed for artifact
-  if (line.startsWith("Found maven artifact: ") && (jobType == JobType.Repository) && (prevSearchDepth < +process.env.MAX_SEARCH_DEPTH)) {
+  if (line.startsWith("Found maven artifact: ") && (jobType == JobType.Repository)) {
     let artifactString = line.replace(/^(Found maven artifact: )/, "");
     let artifact = Artifact.fromString(artifactString);
 
-    // Queue dependents processing
-    dependentsSearchQueue.add(JobType.Artifact, {artifact: artifact, searchDepth: prevSearchDepth})
-    .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${dependentsSearchQueue.name}`))
-    .catch(err => console.log(err));
+    // Queue artifact processing - allows multiple workers to contribute to processing artifacts from single repo
+    analyseQueue.add(JobType.Artifact, AnalyseJob.fromArtifact(artifact, prevSearchDepth))
+      .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${analyseQueue.name}`))
+      .catch(err => console.log(err));
+
+    if (prevSearchDepth < +process.env.MAX_SEARCH_DEPTH) {
+      // Queue dependents processing
+      dependentsSearchQueue.add(JobType.Artifact, { artifact: artifact, searchDepth: prevSearchDepth })
+        .then(() => console.log(`\u001b[1;36m Added artifact: ${artifact.toString()} to queue ${dependentsSearchQueue.name}`))
+        .catch(err => console.log(err));
+    }
   }
 }
 
