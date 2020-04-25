@@ -42,11 +42,17 @@ On first instance creation:
 $ sudo yum update # update
 $ sudo yum install docker # install docker
 $ sudo systemctl enable docker # set docker to start on startup
+
+# or as a single command
+$ sudo yum update -y && \
+sudo yum install docker -y && \
+sudo systemctl enable docker
 ```
 
 On the instance that will act as swarm manager:
 ```bash
-$ sudo docker swarm init # create a swarm
+# create a swarm
+$ sudo docker swarm init
 ```
 
 This will return the command to run on other instances, so they will join as workers. E.g.

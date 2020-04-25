@@ -60,6 +60,9 @@ RUN npm ci --quiet --only=production
 ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.2.1/wait /wait
 RUN chmod +x /wait
 
+## Healthcheck file
+COPY healthcheck.js ./
+
 ## We just need the build to execute the command
 COPY --from=development /home/app/dist ./dist
 COPY --from=scootafew/jp2g:latest /home/app/jp2g ./jp2g

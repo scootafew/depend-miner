@@ -1,4 +1,24 @@
-# PRBX
+# Depend Miner
+
+## How to Run Locally
+## Installation
+
+```bash
+$ npm install
+```
+
+## How to Run in Docker
+
+### Development
+To build local images. Ommitting the optional service name builds all services.
+
+```bash
+$ docker-compose build <optional-service-name>
+```
+
+To start services defined in [docker-compose.yml](depend-miner/docker-compose.yml)
+
+`docker-compose up`
 
 ### Worker
 https://stackoverflow.com/questions/39663096/docker-compose-creating-multiple-instances-for-the-same-image

@@ -50,7 +50,7 @@ export enum LogColor {
 }
 
 const metricsRegistry = new Registry();
-const intervalCollector = promClient.collectDefaultMetrics({prefix: 'node_worker_', });
+promClient.collectDefaultMetrics({prefix: 'node_worker_', });
 const processedJobs = new Counter({
   name: 'jobs_processed_total',
   help: "How many jobs have been processed by this worker",
@@ -121,6 +121,10 @@ server.get('/metrics', (request, reply) => {
   reply.code(200).header('Content-Type', promClient.register.contentType).send(promClient.register.metrics())
 })
 
+server.get('/healthcheck', (request, reply) => {
+  reply.code(200).send();
+})
+
 server.get('/csvmetrics', (request, reply) => {
   const stream = fs.createReadStream('metric_file.csv');
   reply.code(200).send(stream)
@@ -168,31 +172,27 @@ async function setupWorker() {
 }
 
 async function anaylse(name: string, args: string[], outputHandlers: OutputHandler[]): Promise<ProcessingResult> {
-  try {
-    const startTime = performance.now();
-    // const { stdout, stderr } = await exec(command);
-    const processingResult = await spawnProcess([...opts, ...args], outputHandlers);
-    const endTime = performance.now();
+  const startTime = performance.now();
+  // const { stdout, stderr } = await exec(command);
+  const processingResult = await spawnProcess([...opts, ...args], outputHandlers);
+  const endTime = performance.now();
 
-    processingResult.timeTaken = endTime - startTime;
-    console.log(`Processing ${name} took ${processingResult.timeTaken} milliseconds`);
+  processingResult.timeTaken = endTime - startTime;
+  console.log(`Processing ${name} took ${processingResult.timeTaken} milliseconds`);
 
-    // report metric
-    processingTime.labels(name).observe(processingResult.timeTaken);
+  // report metric
+  processingTime.labels(name).observe(processingResult.timeTaken);
 
-    return processingResult;
-  } catch (err) {
-    throw err;
-  }
+  return processingResult;
 }
 
 async function spawnProcess(args: string[], outputHandlers: ((output: string) => void)[]): Promise<ProcessingResult> {
-    let javaProcess = child_process.spawn("java", args);
-    javaProcess.stderr.pipe(process.stderr);
-    let stdOut = handleStdout(javaProcess.stdout, outputHandlers);
+  let javaProcess = child_process.spawn("java", args);
+  javaProcess.stderr.pipe(process.stderr);
+  let stdOut = handleStdout(javaProcess.stdout, outputHandlers);
 
-    return handleProcessExit(javaProcess, stdOut);
-};
+  return handleProcessExit(javaProcess, stdOut);
+}
 
 async function handleStdout(stdout: Readable, outputHandlers: OutputHandler[]): Promise<string> {
   stdout.pipe(process.stdout);
@@ -218,34 +218,34 @@ async function handleStdout(stdout: Readable, outputHandlers: OutputHandler[]): 
 
 async function handleProcessExit(childProcess: ChildProcessWithoutNullStreams, exitMessage$: Promise<string>): Promise<ProcessingResult> {
   return new Promise(async (resolve, reject) => {
-      childProcess.on("exit", async code => {
-        console.log('Child process exited with code ' + code.toString())
+    childProcess.on("exit", async code => {
+      console.log('Child process exited with code ' + code.toString())
 
-        let exitMessage = await exitMessage$;
+      let exitMessage = await exitMessage$;
 
-        console.log("Exit Message: " + exitMessage);
+      console.log("Exit Message: " + exitMessage);
 
-        // reject if exited with non-zero exit code
-        if (code) {
-          processedJobs.labels(process.env.HOSTNAME, "fail").inc();
-          reject({
-            exitCode: code,
-            message: exitMessage
-          });
-        } else {
-          processedJobs.labels(process.env.HOSTNAME, "success").inc();
-          resolve({
-            exitCode: code,
-            // processedArtifacts: artifacts,
-            // dependencies: dependencies,
-            message: exitMessage
-          });
-        }
-      })
+      // reject if exited with non-zero exit code
+      if (code) {
+        processedJobs.labels(process.env.HOSTNAME, "fail").inc();
+        reject({
+          exitCode: code,
+          message: exitMessage
+        });
+      } else {
+        processedJobs.labels(process.env.HOSTNAME, "success").inc();
+        resolve({
+          exitCode: code,
+          // processedArtifacts: artifacts,
+          // dependencies: dependencies,
+          message: exitMessage
+        });
+      }
+    })
   })
 }
 
-const foundArtifactHandler = (jobType: JobType, prevSearchDepth: number) => (line: String) => {
+const foundArtifactHandler = (jobType: JobType, prevSearchDepth: number) => (line: string) => {
   // Only if repository job as otherwise dependents search will already have been performed for artifact
   if (line.startsWith("Found maven artifact: ") && (jobType == JobType.Repository)) {
     let artifactString = line.replace(/^(Found maven artifact: )/, "");
@@ -266,7 +266,7 @@ const foundArtifactHandler = (jobType: JobType, prevSearchDepth: number) => (lin
 }
 
 
-const foundDependencyHandler = (prevSearchDepth: number) => (line: String) => {
+const foundDependencyHandler = (prevSearchDepth: number) => (line: string) => {
   if (line.startsWith("Found maven dependency: ") && (prevSearchDepth < +process.env.MAX_SEARCH_DEPTH)) {
     let dependencyString = line.replace(/^(Found maven dependency: )/, "");
     let dependency = Artifact.fromString(dependencyString);
