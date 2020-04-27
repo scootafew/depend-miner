@@ -117,20 +117,20 @@ function appendMetricToCsv(jobType: string, id: string, processingTime: number, 
 
 // Create metrics endpoints
 const server: fastify.FastifyInstance<Server, IncomingMessage, ServerResponse> = fastify({})
-server.get('/metrics', (request, reply) => {
+server.get('/metrics', (_request, reply) => {
   reply.code(200).header('Content-Type', promClient.register.contentType).send(promClient.register.metrics())
 })
 
-server.get('/healthcheck', (request, reply) => {
+server.get('/healthcheck', (_request, reply) => {
   reply.code(200).send();
 })
 
-server.get('/csvmetrics', (request, reply) => {
+server.get('/csvmetrics', (_request, reply) => {
   const stream = fs.createReadStream('metric_file.csv');
   reply.code(200).send(stream)
 })
 
-server.delete('/csvmetrics', (request, reply) => {
+server.delete('/csvmetrics', (_request, reply) => {
   fs.unlink('metric_file.csv',() => {
     reply.send("Deleted CSV Metrics File");
   });
@@ -221,8 +221,14 @@ async function handleProcessExit(childProcess: ChildProcessWithoutNullStreams, e
     childProcess.on("exit", async code => {
       console.log('Child process exited with code ' + code.toString())
 
-      let exitMessage = await exitMessage$;
-
+      let exitMessage: string;
+      
+      try {
+        exitMessage = await promiseOrTimeout(5000, exitMessage$);
+      } catch (err) {
+        exitMessage = `Child process exited abruptly with code ${code} and no exit message`
+      }
+      
       console.log("Exit Message: " + exitMessage);
 
       // reject if exited with non-zero exit code
@@ -293,4 +299,25 @@ function cleanTempDirectories() {
 function log(str: string, color: LogColor) {
   const ANSI_RESET = "\u001b[0m";
   console.log(color + str + ANSI_RESET);
+}
+
+/**
+ * Resolves a promise with a timeout
+ * @param ms the timeout in ms after which to reject if Promise has not already completed
+ * @param promise the promise to attempt to resolve before timeout ms.
+ */
+function promiseOrTimeout(ms: number, promise: Promise<any>): Promise<any> {
+  // Create a promise that rejects in <ms> milliseconds
+  let timeout = new Promise((_resolve, reject) => {
+    let id = setTimeout(() => {
+      clearTimeout(id);
+      reject('Timed out in '+ ms + 'ms.')
+    }, ms)
+  })
+
+  // Returns a race between our timeout and the passed in promise
+  return Promise.race([
+    promise,
+    timeout
+  ])
 }
