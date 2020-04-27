@@ -115,6 +115,7 @@ export class GithubService {
     return this.get<any>(request.url, this.options, request.rateLimitType).pipe(
       map(res => adapters.get("GitHubRepository").adapt(res.data)),
       catchError((err: any) => {
+        // type should be AxiosError but no need to assert
         if (err.response?.status == HttpStatus.NOT_FOUND) {
           console.log(`${RED_LOG_COLOUR} GitHub Service@${this.timestamp}: Repository at ${request.url} not found!`);
           return empty();
