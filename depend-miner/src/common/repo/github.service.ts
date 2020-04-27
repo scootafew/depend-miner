@@ -138,7 +138,7 @@ export class GithubService {
     return this.get<GitHubSearchResult<T>>(url, options, rateLimitType)
       .pipe(
         map(res => {
-          const nextUrl = res!.headers['link'] ? parseLinkHeader(res.headers['link']).next?.url : null;
+          const nextUrl = res.headers['link'] ? parseLinkHeader(res.headers['link']).next?.url : null;
 
           return {
             data: res.data.items,

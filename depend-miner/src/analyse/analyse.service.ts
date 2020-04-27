@@ -16,7 +16,7 @@ export class AnalyseService {
     ) { }
 
   async processRepository(repo: Repository, emptyQueue?: boolean) {
-    if (emptyQueue) { this.emptyQueues() };
+    if (emptyQueue) { this.emptyQueues() }
     console.log(`Processing repository ${repo.fullName}`);
 
     // add job to queue with lifo so this job will be processed as soon as worker is free
@@ -30,7 +30,7 @@ export class AnalyseService {
   }
 
   async processArtifact(artifactString: string, emptyQueue?: boolean) {
-    if (emptyQueue) { this.emptyQueues() };
+    if (emptyQueue) { this.emptyQueues() }
     let artifact = Artifact.fromString(artifactString);
 
     // add job to queue with lifo so this job will be processed as soon as worker is free
