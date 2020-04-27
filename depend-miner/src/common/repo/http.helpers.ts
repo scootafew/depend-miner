@@ -20,7 +20,7 @@ export const genericRetryStrategy = ({
       const retryAttempt = i + 1;
       // if maximum number of retries have been met
       // or response is a status code we don't wish to retry, throw error
-      if (retryAttempt > maxRetryAttempts || excludedStatusCodes.find(e => e === error.response.status)) {
+      if (retryAttempt > maxRetryAttempts || excludedStatusCodes.find(e => e === error.response?.status)) {
         return throwError(error);
       }
 
@@ -29,7 +29,7 @@ export const genericRetryStrategy = ({
       }
 
       // If rate limit abuse mechanism triggered, wait longer
-      if (error.response.status == 403) {
+      if (error.response?.status == 403) {
         console.log(`Attempt ${retryAttempt}: retrying in ${retryAttempt * 18000}ms`);
         // retry after 3min, 6min, etc...
         return timer(retryAttempt * 18000);
