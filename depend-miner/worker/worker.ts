@@ -308,9 +308,9 @@ function log(str: string, color: LogColor) {
  */
 function promiseOrTimeout(ms: number, promise: Promise<any>): Promise<any> {
   // Create a promise that rejects in <ms> milliseconds
+  let id: NodeJS.Timeout;
   let timeout = new Promise((_resolve, reject) => {
-    let id = setTimeout(() => {
-      clearTimeout(id);
+    id = setTimeout(() => {
       reject('Timed out in '+ ms + 'ms.')
     }, ms)
   })
@@ -319,5 +319,8 @@ function promiseOrTimeout(ms: number, promise: Promise<any>): Promise<any> {
   return Promise.race([
     promise,
     timeout
-  ])
+  ]).then(result => {
+    clearTimeout(id);
+    return result;
+  })
 }
