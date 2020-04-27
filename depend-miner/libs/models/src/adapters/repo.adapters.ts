@@ -16,8 +16,10 @@ class GitHubRepoAdapter implements Adapter<Repository> {
     repo.url = json.html_url;
     repo.cloneUrl = json.clone_url;
     repo.isFork = (json.fork == "true");
+    repo.isArchived = (json.archived == "true");
     repo.stars = json.stargazers_count;
     repo.size = json.size;
+    repo.updatedDate = new Date(json.updated_at)
 
     return repo;
   }

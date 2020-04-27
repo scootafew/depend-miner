@@ -7,8 +7,10 @@ export class Repository {
   public url: string;
   public cloneUrl: string;
   public isFork: boolean;
+  public isArchived: boolean;
   public stars: number;
   public size: number;
+  public updatedDate: Date;
 
   public latestArtifact: Artifact;
 

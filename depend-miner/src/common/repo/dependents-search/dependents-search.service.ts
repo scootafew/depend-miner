@@ -4,6 +4,7 @@ import { Queue, Job } from 'bull';
 import { ArtifactJob, Repository, JobType, Artifact, AnalyseJob, RepositoryFetchJob } from '@app/models';
 import { GithubService } from '../github.service';
 import { map, count } from 'rxjs/operators';
+import * as moment from 'moment';
 
 @Injectable()
 export class DependentsSearchService {
@@ -44,13 +45,22 @@ export class DependentsSearchService {
     this.repositoryFetchQueue.process(async (job: Job<RepositoryFetchJob>, done) => {
       const {user, repoName, searchDepth} = job.data;
       this.repoService.getRepositoryInBackground(user, repoName, "GitHub").toPromise().then(repo => {
-        if (!repo.isFork && repo.stars >= (+process.env.MIN_STAR_COUNT || 3)) {
+        if (this.isEligibleForAnalysis(repo)) {
           console.log(`Repo ${repo.fullName}, stars: ${repo.stars}, fork: ${repo.isFork}`)
           this.addRepoToQueue(this.analyseQueue, repo, searchDepth);
         }
         done();
       })
     })
+  }
+
+  private isEligibleForAnalysis(repo: Repository): boolean {
+    let threeMonthsAgo = moment(new Date()).subtract(3, "months");
+
+    return !repo.isFork && // not fork
+    !repo.isArchived && // not archived
+    repo.stars >= (+process.env.MIN_STAR_COUNT || 3) &&
+    moment(repo.updatedDate).isAfter(threeMonthsAgo) // repo updated in last three months
   }
 
   private buildQueryString(artifact: Artifact) {
@@ -61,7 +71,8 @@ export class DependentsSearchService {
   // Duplicated code
   private async addRepoToQueue(queue: Queue, repo: Repository, previousSearchDepth: number, lifo: boolean = false) {
     console.log(`\u001b[1;35m Adding repo: ${repo.fullName} to queue ${queue.name}`);
-    queue.add(JobType.Repository, AnalyseJob.fromRepo(repo, previousSearchDepth + 1), {lifo: lifo})
+    const jobOptions = {lifo: lifo, jobId: repo.fullName}; // overriding job ID prevents duplicates as must be unique
+    queue.add(JobType.Repository, AnalyseJob.fromRepo(repo, previousSearchDepth + 1), jobOptions)
       .then(() => console.log(`Added repo: ${repo.fullName} to queue ${queue.name}`))
       .catch(err => console.log(err));
   }
