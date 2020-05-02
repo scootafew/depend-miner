@@ -32,8 +32,16 @@ $ docker-compose -f docker-compose.production.yml <commands...>
 ### AWS
 These services could be run on a container orchestration service such as Docker Swarm or Kubernetes. The examples here are for Docker Swarm, but for Kubernetes the [kompose](https://github.com/kubernetes/kompose) tool may be of interest.
 
+[sg_inbound]: img/securitygroup_rules_inbound.png "Security Group Inbound Rules"
+[sg_outbound]: img/securitygroup_rules_outbound.png "Security Group Outbound Rules"
 #### Security Group
-TODO
+All AWS instances must be set up as part of the same Security Group, to allow networking between Docker Swarm nodes and also connection from the administrator.
+
+##### Inbound Rules
+![Security Group Inbound Rules][sg_inbound]
+
+##### Outbound Rules
+![Security Group Inbound Rules][sg_outbound]
 
 The following commands should be executed on a EC2 instance (or similar).
 
@@ -64,7 +72,7 @@ All further swarm level configuration commands should be executed on the manager
 
 Optionally, nodes can be labelled to control which services are deployed where. These are set as placement constraints in the [AWS compose file](docker-compose.aws.yml). Such labels can be created by running the following command:
 ```bash
-$ sudo docker node update --label-add node.labels.ec2=<value> <node>
+$ sudo docker node update --label-add ec2=c5.large <node>
 
 # <value> = t2.small, c5.large etc.
 ```
