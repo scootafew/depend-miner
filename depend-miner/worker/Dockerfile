@@ -1,5 +1,6 @@
 #
 # Base image stage
+# TODO Change to JDK 11
 #
 FROM maven:3.6.0-jdk-8-slim AS base
 
