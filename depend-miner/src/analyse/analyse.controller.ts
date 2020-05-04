@@ -12,7 +12,7 @@ export class AnalyseController {
     @Req() req: FastifyRequest,
     @Param('user') user: string,
     @Param('repo') repoName: string,
-    @Query('resetQueus') resetQueues: boolean,
+    @Query('resetQueues') resetQueues: boolean,
     @Res() response: FastifyReply<any>) {
     let repo = await this.analyseService.getRepository(user, repoName);
     if (repo) {
@@ -27,7 +27,7 @@ export class AnalyseController {
   async postArtifactHandler(
     @Req() req: FastifyRequest,
     @Query('artifact') artifact: string,
-    @Query('resetQueus') resetQueues: boolean,
+    @Query('resetQueues') resetQueues: boolean,
     @Res() response: FastifyReply<any>) {
     this.analyseService.processArtifact(artifact, resetQueues);
     response.code(200).send(`Processing "${artifact}"...`);
