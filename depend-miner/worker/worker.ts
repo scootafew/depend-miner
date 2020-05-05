@@ -311,7 +311,7 @@ function promiseOrTimeout(ms: number, promise: Promise<any>): Promise<any> {
   let id: NodeJS.Timeout;
   let timeout = new Promise((_resolve, reject) => {
     id = setTimeout(() => {
-      reject('Timed out in '+ ms + 'ms.')
+      reject(`Timed out in ${ms} ms.`)
     }, ms)
   })
 
