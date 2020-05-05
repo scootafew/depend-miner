@@ -7,10 +7,10 @@
 $ npm install
 ```
 
-## How to Run in Docker
-
 ### Secrets
 Before the application can be run, the template file [secrets.env.template](secrets.env.template) should be renamed to `secrets.env` and the values populated. The Redis and Neo4J passwords can be any values. The GitHub API access token should be generated [here](https://github.com/settings/tokens/new) with the `public_repo` scope only.
+
+## How to Run in Docker
 
 ### Development
 To build local images. Ommitting the optional service name builds all services.
