@@ -1,6 +1,9 @@
 # Java-parse-to-graph jar(s)
 jp2g
 
+# Env
+*.env
+
 # Logs
 logs
 *.log

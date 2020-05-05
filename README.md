@@ -9,6 +9,9 @@ $ npm install
 
 ## How to Run in Docker
 
+### Secrets
+Before the application can be run, the template file [secrets.env.template](secrets.env.template) should be renamed to `secrets.env` and the values populated. The Redis and Neo4J passwords can be any values. The GitHub API access token should be generated [here](https://github.com/settings/tokens/new) with the `public_repo` scope only.
+
 ### Development
 To build local images. Ommitting the optional service name builds all services.
 
@@ -25,12 +28,16 @@ $ docker-compose up <optional-service-name>
 ### Production
 For production, run docker-compose commands specifying the [production compose file](docker-compose.production.yml).
 
+Environment variables also need to be set for Redis and Neo4J password, along with the GitHub API token. Suggestion is to create `secrets.prod.env` and pass to docker-compose. (Note: .env files are included in the .gitignore file to prevent against accidental commit of secrets)
+
 ```bash
-$ docker-compose -f docker-compose.production.yml <commands...>
+$ docker-compose -f docker-compose.production.yml --env-file=secrets.prod.env <commands...>
 ```
 
 ### AWS
 These services could be run on a container orchestration service such as Docker Swarm or Kubernetes. The examples here are for Docker Swarm, but for Kubernetes the [kompose](https://github.com/kubernetes/kompose) tool may be of interest.
+
+Environment variables need to be set for Redis and Neo4J password, along with the GitHub API token. Suggestion is to create `secrets.aws.env` and pass to docker-compose. (Note: .env files are included in the .gitignore file to prevent against accidental commit of secrets)
 
 [sg_inbound]: img/securitygroup_rules_inbound.png "Security Group Inbound Rules"
 [sg_outbound]: img/securitygroup_rules_outbound.png "Security Group Outbound Rules"
@@ -82,9 +89,14 @@ Create the [AWS compose file](docker-compose.aws.yml).
 $ sudo vi docker-compose.yml
 ```
 
+Create the AWS secrets file and populate it.
+```bash
+$ sudo vi secrets.aws.env
+```
+
 Create the stack
 ```bash
-$ sudo docker stack deploy -c docker-compose.yml dependTest
+$ sudo docker stack deploy -c docker-compose.yml --env-file=secrets.aws.env  dependTest
 ```
 
 Verify the services have been created
