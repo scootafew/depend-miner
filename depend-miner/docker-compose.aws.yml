@@ -58,7 +58,7 @@ services:
     expose: 
       - "3000"
     deploy:
-      replicas: 3
+      mode: global # will deploy exactly 1 worker on all node that meets constraints
       endpoint_mode: dnsrr # to enable dns service discovery in swarm mode
       placement:
         constraints: [node.labels.ec2 == c5.large]
@@ -94,6 +94,8 @@ services:
       - "7473:7473"
     environment: 
       - NEO4J_AUTH=neo4j/6ac898ff3d4f12bcc48db4872ff3c37a
+      # # https://neo4j.com/docs/operations-manual/current/reference/configuration-settings/#config_dbms.lock.acquisition.timeout
+      # - NEO4J_dbms.lock.acquisition.timeout=5s
     volumes:
       # - $HOME/neo4j/data:/data
       # - $HOME/neo4j/logs:/logs
