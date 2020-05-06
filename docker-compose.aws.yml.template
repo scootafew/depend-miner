@@ -63,7 +63,7 @@ services:
       placement:
         constraints: [node.labels.ec2 == c5.large]
     healthcheck:
-      test: node /healthcheck.js
+      test: node /home/app/healthcheck.js
       interval: 12s
       timeout: 12s
       start_period: 30s

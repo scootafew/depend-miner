@@ -36,6 +36,7 @@ export const genericRetryStrategy = ({
 
       // If rate limit abuse mechanism triggered, wait longer
       if (error.response.status == 403 && (error.response.data.message as string).toLowerCase().indexOf("abuse") != -1) {
+        // TODO use Retry-After response header
         console.log(`Attempt ${retryAttempt}: retrying in ${retryAttempt * 180000}ms`);
         // retry after 3min, 6min, etc...
         return timer(retryAttempt * 180000);

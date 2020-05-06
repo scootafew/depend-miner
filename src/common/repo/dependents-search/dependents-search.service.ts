@@ -71,10 +71,17 @@ export class DependentsSearchService {
   // Duplicated code
   private async addRepoToQueue(queue: Queue, repo: Repository, previousSearchDepth: number, lifo: boolean = false) {
     console.log(`\u001b[1;35m Adding repo: ${repo.fullName} to queue ${queue.name}`);
-    const jobOptions = {lifo: lifo, jobId: repo.fullName}; // overriding job ID prevents duplicates as must be unique
+    const jobOptions = {lifo: lifo, jobId: repo.fullName, priority: this.getPriority(repo)}; // overriding job ID prevents duplicates as must be unique
     queue.add(JobType.Repository, AnalyseJob.fromRepo(repo, previousSearchDepth + 1), jobOptions)
       .then(() => console.log(`Added repo: ${repo.fullName} to queue ${queue.name}`))
       .catch(err => console.log(err));
+  }
+
+  // Jobs with higher priority will be processed before than jobs with lower priority. Highest priority is 1, and lower the larger integer you use.
+  // This code requires higher priority for higher number of stars so reverses number through subtraction
+  // All with stars over 100 get highest priority
+  private getPriority(repo: Repository) {
+    return repo.stars > 100 ? 1 : (100 - repo.stars)
   }
 
 }

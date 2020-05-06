@@ -37,8 +37,6 @@ $ docker-compose -f docker-compose.production.yml --env-file=secrets.prod.env <c
 ### AWS
 These services could be run on a container orchestration service such as Docker Swarm or Kubernetes. The examples here are for Docker Swarm, but for Kubernetes the [kompose](https://github.com/kubernetes/kompose) tool may be of interest.
 
-Environment variables need to be set for Redis and Neo4J password, along with the GitHub API token. Suggestion is to create `secrets.aws.env` and pass to docker-compose. (Note: .env files are included in the .gitignore file to prevent against accidental commit of secrets)
-
 [sg_inbound]: img/securitygroup_rules_inbound.png "Security Group Inbound Rules"
 [sg_outbound]: img/securitygroup_rules_outbound.png "Security Group Outbound Rules"
 #### Security Group
@@ -84,7 +82,9 @@ $ sudo docker node update --label-add ec2=c5.large <node>
 # <value> = t2.small, c5.large etc.
 ```
 
-Create the [AWS compose file](docker-compose.aws.yml).
+Create the [AWS compose file](docker-compose.aws.yml). 
+
+Currently Docker Swarm does not support use of a .env file in the same way as docker-compose. For now, the solution is to populate the necessary variables in the provided [AWS compose file template](docker-compose.aws.yml.template). In future, support for Docker Secrets is preferable, however as these are not read from the environment it would require a change to the application code, probably with the addition of a config service.
 ```bash
 $ sudo vi docker-compose.yml
 ```
@@ -96,7 +96,7 @@ $ sudo vi secrets.aws.env
 
 Create the stack
 ```bash
-$ sudo docker stack deploy -c docker-compose.yml --env-file=secrets.aws.env  dependTest
+$ sudo docker stack deploy -c docker-compose.yml dependTest
 ```
 
 Verify the services have been created
