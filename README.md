@@ -10,6 +10,17 @@ $ npm install
 ### Secrets
 Before the application can be run, the template file [secrets.env.template](secrets.env.template) should be renamed to `secrets.env` and the values populated. The Redis and Neo4J passwords can be any values. The GitHub API access token should be generated [here](https://github.com/settings/tokens/new) with the `public_repo` scope only.
 
+## Making Requests
+Processing can be triggered for either a repository or artifact, by making a POST request to the relevant endpoint.
+
+```bash
+# for a repository
+http://localhost:3000/analyse/github/<username>/<repositoryName>
+
+# for an artifact
+http://localhost:3000/analyse/maven?artifact=<groupId>:<artifactId>:<version>
+```
+
 ## How to Run in Docker
 
 ### Development
