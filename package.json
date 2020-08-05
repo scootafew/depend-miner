@@ -33,7 +33,7 @@
     "bull": "^3.12.1",
     "bull-board": "^0.6.0",
     "csv-write-stream": "^2.0.0",
-    "fastify": "^2.11.0",
+    "fastify": "^2.15.1",
     "moment": "^2.24.0",
     "parse-link-header": "^1.0.1",
     "prom-client": "^12.0.0",
