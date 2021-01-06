@@ -29,7 +29,7 @@
     "@nestjs/core": "^6.10.14",
     "@nestjs/platform-express": "^6.10.14",
     "@nestjs/platform-fastify": "^6.11.5",
-    "axios": "^0.19.2",
+    "axios": "^0.21.1",
     "bull": "^3.12.1",
     "bull-board": "^0.6.0",
     "csv-write-stream": "^2.0.0",
